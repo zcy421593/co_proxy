@@ -12,18 +12,16 @@ struct co_thread {
 	event* tmr_start;
 	event* tmr_notify_waiting;
 
-	int waiting_thread[20];
-	int waiting_thread_count;
+	int waiting_thread_taskid;
 	bool is_detached;
+	bool is_complete;
 };
 
 static void thread_notifycb(int fd, short what, void * args) {
 	co_thread* thread = (co_thread*)args;
 	event_free(thread->tmr_notify_waiting);
 	thread->tmr_notify_waiting = NULL;
-	for(int i = 0; i < thread->waiting_thread_count; i++) {
-		coroutine_resume(thread->base->sch, thread->waiting_thread[i]);
-	}
+	coroutine_resume(thread->base->sch, thread->waiting_thread_taskid);
 
 	if(thread->is_detached){
 		free(thread);
@@ -33,8 +31,8 @@ static void thread_notifycb(int fd, short what, void * args) {
 static void thread_do_excute(schedule* sch, void* args) {
 	co_thread* thread = (co_thread*)args;
 	thread->ret_value = thread->start_cb(thread, thread->start_args);
-
-	if(thread->waiting_thread_count > 0) {
+	thread->is_complete = true;
+	if(thread->waiting_thread_taskid >= 0) {
 		timeval val = {};
 		thread->tmr_notify_waiting = evtimer_new(thread->base->base, thread_notifycb, thread);
 		evtimer_add(thread->tmr_notify_waiting, &val);
@@ -56,7 +54,7 @@ co_thread* co_thread_create(co_base* base, co_threadcb cb, void* args) {
 	thread->base = base;
 	thread->start_args = args;
 	thread->start_cb = cb;
-
+	thread->waiting_thread_taskid = -1;
 	timeval val = {};
 	thread->tmr_start = evtimer_new(base->base, thread_startcb, thread);
 	evtimer_add(thread->tmr_start, &val);
@@ -64,18 +62,17 @@ co_thread* co_thread_create(co_base* base, co_threadcb cb, void* args) {
 }
 
 void* co_thread_join(co_thread* thread) {
+
 	int current_task_id = coroutine_running(thread->base->sch);
 	if(current_task_id < 0) {
 		return NULL;
 	}
 
-	if(thread->waiting_thread_count >= MAX_WAITING_THREAD) {
-		return NULL;
+	if(!thread->is_complete) {
+		thread->waiting_thread_taskid = current_task_id;
+		coroutine_yield(thread->base->sch);
 	}
-
-	thread->waiting_thread[thread->waiting_thread_count] = current_task_id;
-	thread->waiting_thread_count++;
-	coroutine_yield(thread->base->sch);
+	
 	return thread->ret_value;
 }
 

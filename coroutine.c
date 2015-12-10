@@ -7,7 +7,7 @@
 #include <string.h>
 #include <stdint.h>
 
-#define STACK_SIZE (1024*1024)
+#define STACK_SIZE (1024*1024 * 5)
 #define DEFAULT_COROUTINE 16
 
 struct coroutine;
