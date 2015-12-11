@@ -224,6 +224,9 @@ int http_downstream::read_body(char* body, int len) {
 	 		if(ret != 2) {
 	 			return -1;
 	 		}
+
+	 		int fd = co_socket_detach_fd(sock_);
+		    pool_queue_connection(this->base_->base , this->req_->url_host, this->req_->url_port, fd);
 	 		return 0;
 	 	}
 	 	return -1;
@@ -236,6 +239,9 @@ int http_downstream::read_body(char* body, int len) {
 	 	}
 
 	 	if(this->body_read_ == content_len) {
+
+	 		int fd = co_socket_detach_fd(sock_);
+		    pool_queue_connection(this->base_->base , this->req_->url_host, this->req_->url_port, fd);
 	 		return 0;
 	 	}
 
