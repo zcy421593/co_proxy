@@ -43,6 +43,13 @@ static int read_request_line(co_socket* sock, http_request_header* header) {
 			    parser_url.field_data[UF_HOST].len);
 	}
 
+	if(parser_url.field_set & (1 << UF_QUERY)) {
+		header->url_query.resize(parser_url.field_data[UF_QUERY].len);
+		strncpy((char*)header->url_query.c_str(), 
+			    header->url.c_str() + parser_url.field_data[UF_QUERY].off,
+			    parser_url.field_data[UF_HOST].len);
+	}
+
 	if(parser_url.field_set & (1 << UF_PORT)) {
 		char port[10] = {};
 		strncpy(port, 
