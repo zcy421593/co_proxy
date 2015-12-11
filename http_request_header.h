@@ -23,5 +23,7 @@ public:
 	http_request_header() {
 		this->url_port = 80;
 	}
+
+	std::string get_header_value(std::string field);
 };
 #endif

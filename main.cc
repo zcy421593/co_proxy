@@ -6,6 +6,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <signal.h>
 #include "dns.h"
 #include "http_parser.h"
 #include "utils.h"
@@ -14,8 +15,23 @@
 #include "http_downstream.h"
 using namespace std;
 
-
+struct relay_info {
+	co_socket* sock_read;
+	co_socket* sock_send;
+};
 static void* relay_cb(co_thread* thread, void* args) {
+	char buf[4096] = {};
+	relay_info* info = (relay_info*)args;
+	for(;;) {
+		int ret = co_socket_read(info->sock_read, buf, sizeof(buf));
+		if(ret <= 0) {
+			break;
+		}
+		ret = co_socket_write(info->sock_send, buf, ret);
+		if(ret <= 0) {
+			break;
+		}
+	}
 	return NULL;
 }
 
@@ -48,29 +64,23 @@ static void* connect_log_cb(co_thread* thread, void* args) {
 		delete upstream;
 		return NULL;
 	}
-	int64_t content_len = atoll(req_hdr->content_length.c_str());
-	printf("read_content_length:%lld\n", content_len);
-	int64_t len_recv = 0;
+	
 	for(;;) {
-		int len_left = content_len - len_recv;
-		int len_try_recv = len_left < 4096 ? len_left : 4096;
+
 		char read_buf[4096] = {};
-		int len_read = upstream->read_body(read_buf, len_try_recv);
+		int len_read = upstream->read_body(read_buf, sizeof(read_buf));
 		if(len_read <= 0) {
 			break;
 		}
 
 		fwrite(read_buf, 1, len_read, file);
 		fflush(file);
-		len_recv += len_read;
-
-		if(len_recv == content_len) {
-			const char* resp = "HTTP/1.1 200 OK\r\n"
-			"Content-Length: 0\r\n\r\n";
-			co_socket_write(sock_client, (char*)resp, strlen(resp));
-			break;
-		}
 	}
+
+	const char* resp = "HTTP/1.1 200 OK\r\n"
+			"Content-Length: 0\r\n\r\n";
+	co_socket_write(sock_client, (char*)resp, strlen(resp));
+
 	fclose(file);
 	co_socket_close(sock_client);
 	delete upstream;
@@ -78,6 +88,8 @@ static void* connect_log_cb(co_thread* thread, void* args) {
 }
 
 static void* connect_cb(co_thread* thread, void* args) {
+	bool err = false;
+	char buf[4096] = {};
 	co_base* base = co_thread_get_base(thread);
 	co_socket* sock_client = (co_socket*)args;
 	for(;;) {
@@ -89,14 +101,38 @@ static void* connect_cb(co_thread* thread, void* args) {
 		int status_code = 0;
 		if(!req_hdr) {
 			delete upstream;
+			upstream = NULL;
 			goto complete_session;
 		}
 
 		if(req_hdr->method == "CONNECT") {
 			const char* resp_str= "HTTP/1.1 200 Establish\r\n\r\n";
 			co_socket_write(sock_client, (char*)resp_str, strlen(resp_str));
-			co_thread* thread_relay = co_thread_create(base, relay_cb, NULL);
-			co_thread_join(thread_relay);
+			co_socket* sock_relay = co_socket_create(base);
+			const char* ip = dns_resolve(req_hdr->url_host.c_str());
+
+			if(!ip) {
+				co_socket_close(sock_relay);
+				break;
+			}
+
+			if(co_socket_connect(sock_relay, ip, req_hdr->url_port) != 0) {
+				co_socket_close(sock_relay);
+				break;
+			}
+			relay_info* relay1 = new relay_info;
+			relay1->sock_read = sock_client;
+			relay1->sock_send = sock_relay;
+			relay_info* relay2 = new relay_info;
+			relay2->sock_read = sock_relay;
+			relay2->sock_send = sock_client;
+
+			co_thread* thread_relay1 = co_thread_create(base, relay_cb, relay1);
+			co_thread* thread_relay2 = co_thread_create(base, relay_cb, relay2);
+			co_thread_join(thread_relay1);
+			co_thread_join(thread_relay2);
+			delete relay1;
+			delete relay2;
 			break;
 		}
 
@@ -112,31 +148,91 @@ static void* connect_cb(co_thread* thread, void* args) {
 		}
 		downstream->write_request_header();
 
+		if(req_hdr->get_header_value("Expect") == "100-continue") {
+			const char* resp_str= "HTTP/1.1 100 CONTINUE\r\n\r\n";
+			co_socket_write(sock_client, (char*)resp_str, strlen(resp_str));
+		}
+
+		if(req_hdr->method == "POST" || req_hdr->method == "PUT") {
+			bool err = false;
+			for(;;) {
+				int len_read = upstream->read_body(buf, sizeof(buf));
+				if(len_read < 0) {
+					err = true;
+					break;
+				} else if(len_read ==0) {
+					downstream->complete_body();
+					break;
+				} else {
+					downstream->write_body(buf, len_read);
+				}
+			}
+
+			if(err) {
+				goto complete_session;
+			}
+		}
+read_hdr:
 		resp_hdr = downstream->read_response_header();
 		if(!resp_hdr) {
 			goto complete_session;
 		}
+
+		if(resp_hdr->status_code == "100") {
+			delete resp_hdr;
+			goto read_hdr;
+		}
 		printf("status code=%s\n", resp_hdr->status_code.c_str());
-		upstream->write_response_header(resp_hdr);
+		
+		if(upstream->write_response_header(resp_hdr) < 0) {
+			goto complete_session;
+		}
+
 		status_code = atoi(resp_hdr->status_code.c_str());
 		if(req_hdr->method == "HEAD" ||
-		   (status_code >= 100 && status_code <200) ||
+		   (status_code > 100 && status_code <200) ||
 		   status_code == 204 ||
 		   status_code == 304) {
 			delete upstream;
 			delete downstream;
+			upstream = NULL;
+			downstream = NULL;
 			continue;
 		}
 
-		continue;
+		
+		for(;;) {
+			int len_read = downstream->read_body(buf, sizeof(buf));
+			printf("downstream readbody ret:%d\n", len_read);
+			if(len_read < 0) {
+				err = true;
+				break;
+			} else if(len_read ==0) {
+				if(upstream->complete_body() < 0) {
+					err = true;
+				}
+				break;
+			} else {
+				if(upstream->write_body(buf, len_read) < 0) {
+					err = true;
+					break;
+				}
+			}
+		}
+
+		if(!err) {
+			continue;
+		}		
 
 complete_session:
 		if(upstream) {
 			delete upstream;
+			upstream = NULL;
 		}
 
 		if(downstream) {
 			delete downstream;
+			downstream = NULL;
 		}
 		break;
 	}
@@ -182,14 +278,14 @@ void* listen_log_cb(co_thread* thread, void* args) {
 }
 
 int main() {
-
+	signal(SIGPIPE, SIG_IGN);
 	co_base* base = co_base_create();
 	dns_init(base, "114.114.114.114");
 	printf("dns init complete\n");
-	//co_thread* thread_listen = co_thread_create(base, listen_cb, NULL);
-	co_thread* thread_listen_log = co_thread_create(base, listen_log_cb, NULL);
+	co_thread* thread_listen = co_thread_create(base, listen_cb, NULL);
+	//co_thread* thread_listen_log = co_thread_create(base, listen_log_cb, NULL);
 	//co_thread* thread_connect = co_thread_create(base, connect_cb, NULL);
-	co_thread_detach(thread_listen_log);
+	//co_thread_detach(thread_listen_log);
 	//thread_connect = NULL;
 	co_base_dispatch(base);
 }

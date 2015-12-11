@@ -9,7 +9,7 @@ public:
 	http_response_header* read_response_header();
 	bool is_response_complete();
 	int write_body(char* body, int len);
-	int complete_body_complete();
+	int complete_body();
 	int read_body(char* body, int len);
 private:
 	int read_chunk_hdr();

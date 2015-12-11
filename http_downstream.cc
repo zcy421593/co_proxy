@@ -15,6 +15,9 @@ using namespace std;
 http_downstream::http_downstream(co_base* base, http_request_header* req) {
 	this->base_ = base;
 	this->req_ = req;
+	this->current_chunk_len_ = -1;
+	this->chunk_read_len_ = 0;
+	this->body_read_ = 0;
 }
 
 int http_downstream::connect() {
@@ -121,7 +124,7 @@ static int read_response_header(co_socket* sock, http_response_header* header) {
 		}
 
 		printf("%s: %s\n", p.first.c_str(), p.second.c_str());
-		
+
 
 
 		
@@ -165,12 +168,20 @@ http_response_header* http_downstream::read_response_header() {
 		this->resp_ = NULL;
 		return NULL;
 	}
+	int status_code = atoi(this->resp_->status_code.c_str());
+	if((status_code > 100 && status_code < 200) ||
+		status_code == 204 ||
+		status_code == 304) {
+		int fd = co_socket_detach_fd(sock_);
+		pool_queue_connection(this->base_->base , this->req_->url_host, this->req_->url_port, fd);
+	}
 	return this->resp_;
 }
 
 int http_downstream::read_chunk_hdr() {
 	char readbuf[4096] = {};
 	int len_line = co_socket_readline(sock_, readbuf, sizeof(readbuf));
+	printf("read resp chunk hdr=%s\n", readbuf);
 	if(len_line < 0) {
 		return -1;
 	}
@@ -180,6 +191,8 @@ int http_downstream::read_chunk_hdr() {
 
 int http_downstream::read_body(char* body, int len) {
 	int len_read = 0;
+	printf("http_downstream::readbody\n");
+	char buf_readline[64] = {};
 	 if(this->resp_->transfer_encoding == "chunked") {
 	 	if(this->current_chunk_len_ == -1) {
 	 		if(this->read_chunk_hdr() != 0) {
@@ -196,6 +209,8 @@ int http_downstream::read_body(char* body, int len) {
 		 	}
 		 	this->chunk_read_len_ += len_real_read;
 		 	if(this->chunk_read_len_ == this->current_chunk_len_) {
+		 		// todo check ret value
+		 		co_socket_readline(sock_, buf_readline, sizeof(buf_readline));
 		 		this->current_chunk_len_ = -1;
 		 		this->chunk_read_len_ = 0;
 		 	}
@@ -206,7 +221,7 @@ int http_downstream::read_body(char* body, int len) {
 	 	if(this->current_chunk_len_ == 0) {
 	 		char buf[16] = {};
 	 		int ret = co_socket_read(sock_, buf, sizeof(buf));
-	 		if(ret != 0) {
+	 		if(ret != 2) {
 	 			return -1;
 	 		}
 	 		return 0;
@@ -215,6 +230,15 @@ int http_downstream::read_body(char* body, int len) {
 	 	
 	 } else if(!resp_->content_length.empty()){
 	 	int64_t content_len = atoll(resp_->content_length.c_str());
+
+	 	if(content_len == 0) {
+	 		return 0;
+	 	}
+
+	 	if(this->body_read_ == content_len) {
+	 		return 0;
+	 	}
+
 	 	int64_t len_left = content_len - this->body_read_;
 	 	int len_cpy = len_left < len ? len_left : len;
 	 	int len_real_read = co_socket_read(this->sock_, body, len_cpy);
@@ -228,4 +252,24 @@ int http_downstream::read_body(char* body, int len) {
 	 } else {
 	 	return co_socket_read(this->sock_, body, len);
 	 }
+}
+
+int http_downstream::write_body(char* body, int len) {
+	if(this->req_->transfer_encoding == "chunked") {
+		char buf[64] = {};
+		snprintf(buf, sizeof(buf), "%x\r\n", len);
+		co_socket_write(sock_, buf, strlen(buf));
+		co_socket_write(sock_, body, len);
+		return co_socket_write(sock_, (char*)"\r\n", 2);
+	} else {
+		return co_socket_write(sock_, body, len);
+	}
+}
+
+int http_downstream::complete_body() {
+	if(this->req_->transfer_encoding == "chunked") {
+		const char* resp = "0\r\n\r\n";		
+		return co_socket_write(sock_, (char*)resp, strlen(resp));
+	}
+	return 0;
 }

@@ -144,28 +144,29 @@ http_upstream::http_upstream(co_base* base, co_socket* sock) {
 	this->current_chunk_len_ = -1;
 	this->chunk_read_len_ = 0;
 	this->body_read_ = 0;
-	this->req = NULL;
+	this->req_ = NULL;
 }
 
 http_request_header* http_upstream::read_header() {
-	if(this->req) {
-		delete this->req;
+	if(this->req_) {
+		delete this->req_;
 	}
-	this->req = new http_request_header();
-	if(read_request_header(this->sock_client_, this->req) != 0) {
+	this->req_ = new http_request_header();
+	if(read_request_header(this->sock_client_, this->req_) != 0) {
 		goto err;
 	}
-	return this->req;
+	return this->req_;
 err:
-	if(this->req) {
-		delete this->req;
-		this->req = NULL;
+	if(this->req_) {
+		delete this->req_;
+		this->req_ = NULL;
 	}
 	return NULL;
 
 }
 
 int http_upstream::write_response_header(http_response_header* resp_hdr) {
+	this->resp_ = resp_hdr;
 	string resp_str;
 	append_format_string(resp_str, "%s %s %s\r\n", resp_hdr->version_str.c_str(), resp_hdr->status_code.c_str(), resp_hdr->status_str.c_str());
 		for(int i = 0; i < resp_hdr->vec_headers.size(); i++) {
@@ -192,7 +193,8 @@ int http_upstream::read_chunk_hdr() {
 
 int http_upstream::read_body(char* body, int len) {
 	int len_read = 0;
-	 if(this->req->transfer_encoding == "chunked") {
+	char buf_readline[64] = {};
+	 if(this->req_->transfer_encoding == "chunked") {
 	 	if(this->current_chunk_len_ == -1) {
 	 		if(this->read_chunk_hdr() != 0) {
 	 			return -1;
@@ -208,10 +210,10 @@ int http_upstream::read_body(char* body, int len) {
 		 	}
 		 	this->chunk_read_len_ += len_real_read;
 		 	if(this->chunk_read_len_ == this->current_chunk_len_) {
+		 		co_socket_readline(sock_client_, buf_readline, sizeof(buf_readline));
 		 		this->current_chunk_len_ = -1;
 		 		this->chunk_read_len_ = 0;
 		 	}
-
 		 	return len_real_read;
 	 	}
 
@@ -225,8 +227,17 @@ int http_upstream::read_body(char* body, int len) {
 	 	}
 	 	return -1;
 	 	
-	 } else if(!req->content_length.empty()){
-	 	int64_t content_len = atoll(req->content_length.c_str());
+	 } else if(!req_->content_length.empty()){
+	 	int64_t content_len = atoll(req_->content_length.c_str());
+
+	 	if(content_len == 0) {
+	 		return 0;
+	 	}
+
+	 	if(this->body_read_ == content_len) {
+	 		return 0;
+	 	}
+
 	 	int64_t len_left = content_len - this->body_read_;
 	 	int len_cpy = len_left < len ? len_left : len;
 	 	int len_real_read = co_socket_read(this->sock_client_, body, len_cpy);
@@ -240,4 +251,36 @@ int http_upstream::read_body(char* body, int len) {
 	 } else {
 	 	return co_socket_read(this->sock_client_, body, len);
 	 }
+}
+
+int http_upstream::write_body(char* body, int len) {
+	int ret = 0;
+	if(this->resp_->transfer_encoding == "chunked") {
+		char buf[64] = {};
+		snprintf(buf, sizeof(buf), "%x\r\n", len);
+		ret = co_socket_write(sock_client_, buf, strlen(buf));
+		if(ret < 0) {
+			return -1;
+		}
+		ret = co_socket_write(sock_client_, body, len);
+		if(ret < 0) {
+			return -1;
+		}
+		ret = co_socket_write(sock_client_, (char*)"\r\n", 2);
+		if(ret < 0) {
+			return -1;
+		}
+		return 0;
+	} else {
+		return co_socket_write(sock_client_, body, len);
+	}
+}
+
+int http_upstream::complete_body() {
+	if(this->resp_->transfer_encoding == "chunked") {
+		printf("complete body called\n");
+		const char* resp = "0\r\n\r\n";		
+		return co_socket_write(sock_client_, (char*)resp, strlen(resp));
+	}
+	return 0;
 }

@@ -261,7 +261,9 @@ int co_socket_write(co_socket* sock, char* buf, int len) {
 				coroutine_yield(sock->base->sch);
 				continue;
 			} else {
+				printf("write error detect\n");
 				sock->is_error = true;
+				write_len = -1;
 				break;
 			}
 		}

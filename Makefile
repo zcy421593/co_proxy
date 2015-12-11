@@ -9,6 +9,7 @@ DEPS = http_parser.o \
 	   conn_pool.o \
 	   http_upstream.o \
 	   http_downstream.o \
+	   http_request_header.o \
 	   main.o
 
 STATIC = libevent/libevent.a
