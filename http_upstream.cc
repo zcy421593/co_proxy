@@ -11,7 +11,7 @@ using namespace std;
 static int read_request_line(co_socket* sock, http_request_header* header) {
 	http_parser_url parser_url;
 	char readbuf[512] = {};
-	char buf_tmp[512] = {};
+	char* buf_tmp;
 	int len = co_socket_readline(sock, readbuf, sizeof(readbuf));
 	if(len < 0) {
 		return -1;
@@ -28,34 +28,34 @@ static int read_request_line(co_socket* sock, http_request_header* header) {
 		return -1;
 	}
 
-	bzero(buf_tmp, sizeof(buf_tmp));
-	strncpy(buf_tmp, readbuf, pos - readbuf);
+	
+	buf_tmp = strndup(readbuf, pos - readbuf);
 	header->method = buf_tmp;
+	free(buf_tmp);
 
-	bzero(buf_tmp, sizeof(buf_tmp));
-	strncpy(buf_tmp, pos + 1, pos2 - pos -1);
+	buf_tmp = strndup(pos + 1, pos2 - pos -1);
 	header->url = buf_tmp;
+	free(buf_tmp);
 
-	bzero(buf_tmp, sizeof(buf_tmp));
-	strncpy(buf_tmp, pos2 + 1, len - (pos2 - readbuf + 1));
+	buf_tmp = strndup(pos2 + 1, len - (pos2 - readbuf + 1));
 	header->version_str = buf_tmp;
+	free(buf_tmp);
 
 	http_parser_parse_url(header->url.c_str(), header->url.size(), header->method == "CONNECT", &parser_url);
 
 	if(parser_url.field_set & (1 << UF_HOST)) {
-		bzero(buf_tmp, sizeof(buf_tmp));
-		strncpy(buf_tmp, 
-			    header->url.c_str() + parser_url.field_data[UF_HOST].off,
+		
+		buf_tmp = strndup(header->url.c_str() + parser_url.field_data[UF_HOST].off,
 			    parser_url.field_data[UF_HOST].len);
 		header->url_host = buf_tmp;
+		free(buf_tmp);
 	}
 
 	if(parser_url.field_set & (1 << UF_QUERY)) {
-		bzero(buf_tmp, sizeof(buf_tmp));
-		strncpy(buf_tmp, 
-			    header->url.c_str() + parser_url.field_data[UF_QUERY].off,
+		buf_tmp = strndup(header->url.c_str() + parser_url.field_data[UF_QUERY].off,
 			    parser_url.field_data[UF_HOST].len);
 		header->url_query = buf_tmp;
+		free(buf_tmp);
 	}
 
 	if(parser_url.field_set & (1 << UF_PORT)) {
@@ -68,18 +68,16 @@ static int read_request_line(co_socket* sock, http_request_header* header) {
 
 	if(parser_url.field_set & (1 << UF_PATH)) {
 		bzero(buf_tmp, sizeof(buf_tmp));
-		strncpy(buf_tmp, 
-			    header->url.c_str() + parser_url.field_data[UF_PATH].off,
+		buf_tmp = strndup(header->url.c_str() + parser_url.field_data[UF_PATH].off,
 			    parser_url.field_data[UF_PATH].len);
 		header->url_path = buf_tmp;
 	}
 
 	if(parser_url.field_set & (1 << UF_FRAGMENT)) {
-		bzero(buf_tmp, sizeof(buf_tmp));
-		strncpy(buf_tmp, 
-			    header->url.c_str() + parser_url.field_data[UF_FRAGMENT].off,
+		buf_tmp = strndup(header->url.c_str() + parser_url.field_data[UF_FRAGMENT].off,
 			    parser_url.field_data[UF_FRAGMENT].len);
 		header->url_flagment = buf_tmp;
+		free(buf_tmp);
 	}
 	return 0;
 }
