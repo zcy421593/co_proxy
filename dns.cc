@@ -23,20 +23,20 @@
 
 struct cache_record {
     list_head list;
-    char cname[128];
-    char host[128];
+    char cname[256];
+    char host[256];
     char ip[64];
 };
 
 struct request_record {
-    char host[128];
+    char host[256];
 };
 
 struct response_record {
     int type;
     char ip[64];
-    char cname[128];
-    char host[128];
+    char cname[256];
+    char host[256];
 };
 
 struct dns_req {
@@ -53,7 +53,7 @@ struct dns_real_req {
     list_head list;
     list_head list_reqs;
     bool pending;
-    char host[128];
+    char host[256];
     int count_timeout;
     event* tmr_retry;
 };
