@@ -245,7 +245,7 @@ void* listen_cb(co_thread* thread, void* args) {
 	printf("listen start\n");
 	co_base* base = co_thread_get_base(thread);
 	co_socket* sock = co_socket_create(base);
-	co_socket_bind(sock, "127.0.0.1", 8123);
+	co_socket_bind(sock, "0.0.0.0", 8123);
 	co_socket_listen(sock, 5);
 	while(1) {
 		co_socket* sock_client = co_socket_accept(sock);
