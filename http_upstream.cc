@@ -10,7 +10,7 @@ using namespace std;
 
 static int read_request_line(co_socket* sock, http_request_header* header) {
 	http_parser_url parser_url;
-	char readbuf[512] = {};
+	char readbuf[4096] = {};
 	char* buf_tmp;
 	int len = co_socket_readline(sock, readbuf, sizeof(readbuf));
 	if(len < 0) {
