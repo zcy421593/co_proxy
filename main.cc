@@ -220,7 +220,7 @@ read_hdr:
 			}
 		}
 
-		if(!err) {
+		if(!err && resp_hdr->version_str == "HTTP/1.1") {
 			continue;
 		}		
 
