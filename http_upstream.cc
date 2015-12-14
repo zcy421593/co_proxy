@@ -53,7 +53,7 @@ static int read_request_line(co_socket* sock, http_request_header* header) {
 
 	if(parser_url.field_set & (1 << UF_QUERY)) {
 		buf_tmp = strndup(header->url.c_str() + parser_url.field_data[UF_QUERY].off,
-			    parser_url.field_data[UF_HOST].len);
+			    parser_url.field_data[UF_QUERY].len);
 		header->url_query = buf_tmp;
 		free(buf_tmp);
 	}
