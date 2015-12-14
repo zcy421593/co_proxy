@@ -55,6 +55,7 @@ struct dns_real_req {
     bool pending;
     char host[128];
     int count_timeout;
+    event* tmr_retry;
 };
 
 static struct co_base* s_base = NULL;
@@ -121,7 +122,7 @@ static void dns_cache_add(const char* host, const char* ip, const char* cname) {
     list_add_tail(&record->list, &s_cache_hash[i]);
 }
 
-static void dns_real_req_timercb(struct ep_timer* timer, void* args) {
+static void dns_real_req_timercb(int fd, short what, void* args) {
     struct dns_real_req* real_req = (struct dns_real_req*)args;
     real_req->count_timeout ++;
     if(real_req->count_timeout >= 5) {
@@ -148,6 +149,8 @@ static void dns_real_req_add(struct dns_real_req* real_req) {
 }
 
 static void dns_real_req_start(struct dns_real_req* real_req) {
+    timeval val= {5, 0};
+    evtimer_add(real_req->tmr_retry, &val);
     dns_send_req(real_req->host);
 }
 
@@ -178,6 +181,12 @@ static void dns_real_req_active_and_free(struct dns_real_req* req,
 
     if(resp_count == 0 & ret_code == 0) {
         ret_code = -1;
+    }
+
+    if(req->tmr_retry) {
+        evtimer_del(req->tmr_retry);
+        event_free(req->tmr_retry);
+        req->tmr_retry = NULL;
     }
 
     if(ret_code == 0) {
@@ -242,6 +251,8 @@ const char* dns_resolve(const char* host) {
     struct dns_real_req* real_req = dns_real_req_find(host);
     if(!real_req) {
         real_req = (struct dns_real_req*)calloc(1, sizeof(struct dns_real_req));
+        real_req->tmr_retry = evtimer_new(s_base->base, dns_real_req_timercb, real_req);
+
         INIT_LIST_HEAD(&real_req->list_reqs);
         strncpy(real_req->host, host, sizeof(real_req->host));
         dns_real_req_add(real_req);
