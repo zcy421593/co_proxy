@@ -84,20 +84,23 @@ static int read_request_line(co_socket* sock, http_request_header* header) {
 
 static int read_response_field(co_socket* sock, vector<pair<string, string> >* vec_headers) {
 	char* tmp = NULL;
-	char readbuf[4096] = {};
+	char *readbuf = new char[4096];
 	pair<string, string> p;
-	int len = co_socket_readline(sock, readbuf, sizeof(readbuf));
+	int len = co_socket_readline(sock, readbuf, 4096);
 	printf("read_response_field ,line len=%d\n", len);
 	if(len < 0) {
+		delete readbuf;
 		return -1;
 	}
 
 	if(len == 0) {
+		delete readbuf;
 		return 1;
 	}
 
 	char* pos = strchr(readbuf, ':');
 	if(!pos) {
+		delete readbuf;
 		return -1;
 	}
 	tmp = strndup(readbuf, pos - readbuf);
@@ -113,6 +116,7 @@ static int read_response_field(co_socket* sock, vector<pair<string, string> >* v
 	 p.second = tmp;
 	 free(tmp);
 	 vec_headers->push_back(p);
+	 delete readbuf;
 	 return 0;
 }
 
