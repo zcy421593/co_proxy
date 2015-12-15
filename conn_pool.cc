@@ -33,6 +33,8 @@ void pool_queue_connection(event_base* base, std::string dest, int port, int fd)
 	if(s_map.find(tag) == s_map.end()) {
 		s_map[tag] = conn;
 		conn->ev = event_new(base, fd, EV_READ, NULL, conn);
+	} else {
+		close(fd);
 	}
 }
 int  pool_get_connection(std::string dest, int port) {

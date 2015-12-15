@@ -35,57 +35,6 @@ static void* relay_cb(co_thread* thread, void* args) {
 	return NULL;
 }
 
-static void* connect_log_cb(co_thread* thread, void* args) {
-    printf("connect_log_cb\n");
-	co_base* base = co_thread_get_base(thread);
-	co_socket* sock_client = (co_socket*)args;
-
-	http_upstream* upstream = NULL;
-	upstream = new http_upstream(base, sock_client);
-	http_request_header* req_hdr = upstream->read_header();
-	int status_code = 0;
-	if(!req_hdr) {
-		co_socket_close(sock_client);
-		delete upstream;
-		return NULL;
-	}
-
-	if(req_hdr->method != "POST") {
-		co_socket_close(sock_client);
-		delete upstream;
-		return NULL;
-	}
-
-	string path = "/var/tmp" + req_hdr->url_path;
-	FILE* file = fopen(path.c_str(), "w");
-
-	if(!file) {
-		co_socket_close(sock_client);
-		delete upstream;
-		return NULL;
-	}
-	
-	for(;;) {
-
-		char read_buf[4096] = {};
-		int len_read = upstream->read_body(read_buf, sizeof(read_buf));
-		if(len_read <= 0) {
-			break;
-		}
-
-		fwrite(read_buf, 1, len_read, file);
-		fflush(file);
-	}
-
-	const char* resp = "HTTP/1.1 200 OK\r\n"
-			"Content-Length: 0\r\n\r\n";
-	co_socket_write(sock_client, (char*)resp, strlen(resp));
-
-	fclose(file);
-	co_socket_close(sock_client);
-	delete upstream;
-	return NULL;
-}
 
 static void* connect_cb(co_thread* thread, void* args) {
 	bool err = false;
@@ -93,6 +42,7 @@ static void* connect_cb(co_thread* thread, void* args) {
 	co_base* base = co_thread_get_base(thread);
 	co_socket* sock_client = (co_socket*)args;
 	for(;;) {
+		bool do_continue = true;
 		http_upstream* upstream = NULL;
 		http_downstream* downstream = NULL;
 		http_response_header* resp_hdr = NULL;
@@ -100,8 +50,7 @@ static void* connect_cb(co_thread* thread, void* args) {
 		http_request_header* req_hdr = upstream->read_header();
 		int status_code = 0;
 		if(!req_hdr) {
-			delete upstream;
-			upstream = NULL;
+			do_continue = false;
 			goto complete_session;
 		}
 
@@ -113,12 +62,14 @@ static void* connect_cb(co_thread* thread, void* args) {
 
 			if(!ip) {
 				co_socket_close(sock_relay);
-				break;
+				do_continue = false;
+				goto complete_session;
 			}
 
 			if(co_socket_connect(sock_relay, ip, req_hdr->url_port) != 0) {
 				co_socket_close(sock_relay);
-				break;
+				do_continue = false;
+				goto complete_session;
 			}
 			relay_info* relay1 = new relay_info;
 			relay1->sock_read = sock_client;
@@ -133,17 +84,23 @@ static void* connect_cb(co_thread* thread, void* args) {
 			co_thread_join(thread_relay2);
 			delete relay1;
 			delete relay2;
-			break;
+			co_thread_free(thread_relay1);
+			co_thread_free(thread_relay2);
+			co_socket_close(sock_relay);
+			do_continue = false;
+			goto complete_session;
 		}
 
 		if(req_hdr->method == "POST" || req_hdr->method == "PUT") {
 			if(req_hdr->content_length.empty() && req_hdr->transfer_encoding.empty()) {
+				do_continue = false;
 				goto complete_session;
 			}
 		}
 
 		downstream = new http_downstream(base, req_hdr);
 		if(downstream->connect() != 0) {
+			do_continue = false;
 			goto complete_session;
 		}
 		downstream->write_request_header();
@@ -169,12 +126,14 @@ static void* connect_cb(co_thread* thread, void* args) {
 			}
 
 			if(err) {
+				do_continue = false;
 				goto complete_session;
 			}
 		}
 read_hdr:
 		resp_hdr = downstream->read_response_header();
 		if(!resp_hdr) {
+			do_continue = false;
 			goto complete_session;
 		}
 
@@ -185,6 +144,7 @@ read_hdr:
 		printf("status code=%s\n", resp_hdr->status_code.c_str());
 		
 		if(upstream->write_response_header(resp_hdr) < 0) {
+			do_continue = false;
 			goto complete_session;
 		}
 
@@ -193,11 +153,7 @@ read_hdr:
 		   (status_code > 100 && status_code <200) ||
 		   status_code == 204 ||
 		   status_code == 304) {
-			delete upstream;
-			delete downstream;
-			upstream = NULL;
-			downstream = NULL;
-			continue;
+			goto complete_session;
 		}
 
 		
@@ -220,9 +176,9 @@ read_hdr:
 			}
 		}
 
-		if(!err && resp_hdr->version_str == "HTTP/1.1") {
-			continue;
-		}		
+		if(err || resp_hdr->version_str != "HTTP/1.1") {
+			do_continue = false;
+		}
 
 complete_session:
 		if(upstream) {
@@ -234,7 +190,11 @@ complete_session:
 			delete downstream;
 			downstream = NULL;
 		}
-		break;
+		
+		if(!do_continue) {
+			break;
+		}
+		
 	}
 	co_socket_close(sock_client);
 	printf("write complete\n");
@@ -259,33 +219,12 @@ void* listen_cb(co_thread* thread, void* args) {
 	return NULL;
 }
 
-void* listen_log_cb(co_thread* thread, void* args) {
-	printf("listen start\n");
-	co_base* base = co_thread_get_base(thread);
-	co_socket* sock = co_socket_create(base);
-	co_socket_bind(sock, "127.0.0.1", 8999);
-	co_socket_listen(sock, 5);
-	while(1) {
-		co_socket* sock_client = co_socket_accept(sock);
-		printf("accept a client\n");
-		if(!sock_client) {
-			return NULL;
-		}
-		co_thread* th1 = co_thread_create(base, connect_log_cb, sock_client);
-		co_thread_detach(th1);
-	}
-	return NULL;
-}
-
 int main() {
 	signal(SIGPIPE, SIG_IGN);
 	co_base* base = co_base_create();
 	dns_init(base, "114.114.114.114");
 	printf("dns init complete\n");
 	co_thread* thread_listen = co_thread_create(base, listen_cb, NULL);
-	//co_thread* thread_listen_log = co_thread_create(base, listen_log_cb, NULL);
-	//co_thread* thread_connect = co_thread_create(base, connect_cb, NULL);
-	//co_thread_detach(thread_listen_log);
-	//thread_connect = NULL;
+	co_thread_detach(thread_listen);
 	co_base_dispatch(base);
 }

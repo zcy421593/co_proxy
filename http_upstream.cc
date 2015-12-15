@@ -169,6 +169,12 @@ http_upstream::http_upstream(co_base* base, co_socket* sock) {
 	this->req_ = NULL;
 }
 
+http_upstream::~http_upstream() {
+	if(this->req_) {
+		delete this->req_;
+	}
+}
+
 http_request_header* http_upstream::read_header() {
 	if(this->req_) {
 		delete this->req_;

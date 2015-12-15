@@ -37,7 +37,7 @@ static void thread_do_excute(schedule* sch, void* args) {
 		thread->tmr_notify_waiting = evtimer_new(thread->base->base, thread_notifycb, thread);
 		evtimer_add(thread->tmr_notify_waiting, &val);
 	} else if(thread->is_detached){
-		free(thread);
+		co_thread_free(thread);
 	}
 }
 
@@ -74,6 +74,22 @@ void* co_thread_join(co_thread* thread) {
 	}
 	
 	return thread->ret_value;
+}
+
+void co_thread_free(co_thread* thread) {
+	if(thread->tmr_start) {
+		evtimer_del(thread->tmr_start);
+		event_free(thread->tmr_start);
+		thread->tmr_start = NULL;
+	}
+
+	if(thread->tmr_notify_waiting) {
+		evtimer_del(thread->tmr_notify_waiting);
+		event_free(thread->tmr_notify_waiting);
+		thread->tmr_notify_waiting = NULL;
+	}
+
+	free(thread);
 }
 
 void co_thread_detach(co_thread* thread) {

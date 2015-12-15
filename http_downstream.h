@@ -4,6 +4,7 @@
 class http_downstream {
 public:
 	http_downstream(co_base* base, http_request_header* req);
+	~http_downstream();
 	int connect();
 	int write_request_header();
 	http_response_header* read_response_header();

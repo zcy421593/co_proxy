@@ -9,4 +9,5 @@ co_base* co_thread_get_base(co_thread* thread);
 void co_thread_detach(co_thread* thread);
 void* co_thread_get_args(co_thread* thread);
 void* co_thread_join(co_thread* thread);
+void co_thread_free(co_thread* thread);
 #endif

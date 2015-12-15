@@ -18,8 +18,14 @@ http_downstream::http_downstream(co_base* base, http_request_header* req) {
 	this->current_chunk_len_ = -1;
 	this->chunk_read_len_ = 0;
 	this->body_read_ = 0;
+	this->resp_ = NULL;
 }
 
+http_downstream::~http_downstream() {
+	if(this->resp_) {
+		delete this->resp_;
+	}
+}
 int http_downstream::connect() {
 	assert(this->req_);
 	int fd = pool_get_connection(this->req_->url_host, this->req_->url_port);

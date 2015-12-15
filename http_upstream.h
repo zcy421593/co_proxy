@@ -6,6 +6,7 @@
 class http_upstream {
 public:
 	http_upstream(co_base* base, co_socket* sock);
+	~http_upstream();
 	http_request_header* read_header();
 	int write_response_header(http_response_header* resp);
 	int write_body(char* body, int len);
