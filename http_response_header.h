@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include <stdint.h>
+#include <string.h>
 class http_response_header {
 public:
 	std::string version_str;
@@ -16,5 +17,14 @@ public:
 	bool is_chunked();
 	int64_t get_content_length();
 	int get_status_code();
+
+	std::string get_header_value(std::string field) {
+		for(int i = 0; i < this->vec_headers.size(); i++) {
+			if(strcasecmp(vec_headers[i].first.c_str(), field.c_str()) == 0) {
+				return vec_headers[i].second;
+			} 
+		}
+		return "";
+	}
 };
 #endif

@@ -180,6 +180,10 @@ read_hdr:
 			do_continue = false;
 		}
 
+		if(resp_hdr->get_header_value("Connection") == "close") {
+			do_continue = false;
+		}
+
 complete_session:
 		if(upstream) {
 			delete upstream;

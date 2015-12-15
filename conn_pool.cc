@@ -24,7 +24,6 @@ static map<string, conn_info*> s_map;
 
 static void event_cb(int fd, short what, void* args) {
 	fd_info* info = (fd_info*)args;
-
 	list_del(&info->list);
 	event_free(info->ev);
 	close(info->fd);
