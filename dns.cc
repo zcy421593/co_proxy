@@ -125,11 +125,11 @@ static void dns_cache_add(const char* host, const char* ip, const char* cname) {
 static void dns_real_req_timercb(int fd, short what, void* args) {
     struct dns_real_req* real_req = (struct dns_real_req*)args;
     real_req->count_timeout ++;
-    if(real_req->count_timeout >= 5) {
+    //if(real_req->count_timeout >= 5) {
         dns_real_req_active_and_free(real_req, NULL, 0, -1);
-    } else {
-        dns_real_req_start(real_req);
-    }
+    //} else {
+    //    dns_real_req_start(real_req);
+    //}
 }
 
 static struct dns_real_req* dns_real_req_find(const char* host) {

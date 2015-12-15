@@ -36,7 +36,7 @@ void pool_queue_connection(event_base* base, std::string dest, int port, int fd)
 	conn_info* conn = NULL;
 	fd_info* info = (fd_info*)calloc(1, sizeof(fd_info));
 	info->fd = fd;
-	info->ev = event_new(base, fd, EV_READ, NULL, conn);
+	info->ev = event_new(base, fd, EV_READ, event_cb, info);
 	if(s_map.find(tag) == s_map.end()) {
 		conn = new conn_info;
 		conn->tag = tag;
