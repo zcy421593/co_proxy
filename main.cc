@@ -153,6 +153,7 @@ read_hdr:
 		   (status_code > 100 && status_code <200) ||
 		   status_code == 204 ||
 		   status_code == 304) {
+		   	do_continue = false;
 			goto complete_session;
 		}
 
