@@ -55,7 +55,7 @@ int  pool_get_connection(std::string dest, int port) {
 	if(s_map.find(tag) != s_map.end()) {
 		conn_info* conn = s_map[tag];
 		if(!list_empty(&conn->list_fd)) {
-
+			printf("reuse conn:%s\n", tag.c_str());
 			fd_info* info;
 			fd_info* tmp;
 			list_for_each_entry_safe(info, tmp, &conn->list_fd, list) {

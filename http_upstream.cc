@@ -83,6 +83,7 @@ static int read_request_line(co_socket* sock, http_request_header* header) {
 }
 
 static int read_response_field(co_socket* sock, vector<pair<string, string> >* vec_headers) {
+	char* tmp = NULL;
 	char readbuf[4096] = {};
 	pair<string, string> p;
 	int len = co_socket_readline(sock, readbuf, sizeof(readbuf));
@@ -99,19 +100,18 @@ static int read_response_field(co_socket* sock, vector<pair<string, string> >* v
 	if(!pos) {
 		return -1;
 	}
-
-	p.first.resize(pos - readbuf);
-	
-	
-	strncpy((char*)p.first.c_str(), readbuf, pos - readbuf);
+	tmp = strndup(readbuf, pos - readbuf);
+	p.first = tmp;
+	free(tmp);
 
 	pos ++;
 	//printf("after add pos=%s\n", pos);
 	 while(*pos == ' ') {
 	 	pos ++;
 	 }
-	 p.second.resize(len - (pos - readbuf));
-	 strncpy((char*)p.second.c_str(), pos, len - (pos - readbuf));
+	 tmp = strndup(pos, len - (pos - readbuf));
+	 p.second = tmp;
+	 free(tmp);
 	 vec_headers->push_back(p);
 	 return 0;
 }
