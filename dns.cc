@@ -157,7 +157,7 @@ static void dns_real_req_start(struct dns_real_req* real_req) {
 
 static void dns_activecb(int fd, short what, void* args) {
     dns_req* req = (dns_req*)args;
-    printf("dns_activecb,addr=%p, taskid=%d\n", req->task_id);
+    event_free(req->tmr_complete);
     coroutine_resume(s_base->sch, req->task_id);
 }
 
