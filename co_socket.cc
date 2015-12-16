@@ -245,6 +245,13 @@ int co_socket_readline(co_socket* sock, char* buf, int len) {
 
 int co_socket_write(co_socket* sock, char* buf, int len) {
 	const int write_len_once = 4096;
+
+	int ret;
+	getsockopt(sock->fd, SOL_SOCKET, SO_ERROR, &ret, sizeof(ret));
+
+	if(ret != 0) {
+		return -1;
+	}
 	 
 	int write_len = 0;
 	for(;;) {
