@@ -47,6 +47,7 @@ struct dns_req {
     struct dns_real_req* real_req;
     const char* right_result;
     const char* right_cname;
+    event* tmr_complete;
 };
 
 struct dns_real_req {
@@ -154,10 +155,17 @@ static void dns_real_req_start(struct dns_real_req* real_req) {
     dns_send_req(real_req->host);
 }
 
+static void dns_activecb(int fd, short what, void* args) {
+    dns_req* req = (dns_req*)args;
+    printf("dns_activecb,addr=%p, taskid=%d\n", req->task_id);
+    coroutine_resume(s_base->sch, req->task_id);
+}
+
 static void dns_real_req_active_and_free(struct dns_real_req* req, 
                                          struct response_record* resps,
                                          int resp_count,
                                          int ret_code) {
+    printf("dns_real_req_active_and_free\n");
     int i = 0;
     struct dns_req* pos = NULL;
     struct dns_req* n = NULL;
@@ -188,16 +196,17 @@ static void dns_real_req_active_and_free(struct dns_real_req* req,
         event_free(req->tmr_retry);
         req->tmr_retry = NULL;
     }
-
+    printf("adding cache\n");
     if(ret_code == 0) {
         dns_cache_add(req->host, ip, cname);
     }
 
     list_for_each_entry_safe(pos, n, &req->list_reqs, list) {
-        coroutine_resume(s_base->sch, pos->task_id);
-        //pos->cb(ret_code, ips, ip_count, cname, pos->args);
+        timeval val= {};
+        printf("pos->taskid=%d\n", pos->task_id);
+        pos->tmr_complete = evtimer_new(s_base->base, dns_activecb, pos);
+        evtimer_add(pos->tmr_complete, &val);
         list_del(&pos->list);
-        free(pos);
     }
 
     // delete from hash table
@@ -248,6 +257,7 @@ const char* dns_resolve(const char* host) {
     printf("cache not found\n");
 
     req->task_id = coroutine_running(s_base->sch);
+    printf("taskid=%d\n", req->task_id);
     struct dns_real_req* real_req = dns_real_req_find(host);
     if(!real_req) {
         real_req = (struct dns_real_req*)calloc(1, sizeof(struct dns_real_req));
@@ -260,7 +270,10 @@ const char* dns_resolve(const char* host) {
     }
 
     list_add_tail(&req->list, &real_req->list_reqs);
-    coroutine_yield(s_base->sch);
+
+    printf("dns req sent\n");
+    coroutine_yield(s_base->sch); 
+    free(req);
     record = dns_cache_find(host);
     if(record) {
         return record->ip;
@@ -428,18 +441,21 @@ static void dns_recv_cb(int fd, short what, void* args) {
     event_add(s_event, NULL);
     struct sockaddr_in server_addr = {};
     socklen_t addr_len = sizeof(struct sockaddr_in);
-    char recv_buf[512] = {};
+    
 
     if(what != EV_READ) {
         return;
     }
-
-    int rc = recvfrom(s_fd, recv_buf, sizeof(recv_buf), 0, (struct sockaddr *)&server_addr, &addr_len);
+    char* recv_buf = new char[1024];
+    bzero(recv_buf, 1024);
+    int rc = recvfrom(s_fd, recv_buf, 1024, 0, (struct sockaddr *)&server_addr, &addr_len);
     if( rc == -1 ) {
+        delete recv_buf;
         return;
     }
 
     decode_response(recv_buf, rc);
+    delete[] recv_buf;
 }
 
 int dns_fini() {
