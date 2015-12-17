@@ -25,6 +25,10 @@ http_downstream::~http_downstream() {
 	if(this->resp_) {
 		delete this->resp_;
 	}
+
+	if(this->sock_) {
+		co_socket_close(this->sock_);
+	}
 }
 int http_downstream::connect() {
 	assert(this->req_);

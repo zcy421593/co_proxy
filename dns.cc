@@ -239,11 +239,9 @@ int dns_init(struct co_base* base, const char* ns_addr) {
 
 const char* dns_resolve(const char* host) {
     printf("resolve start\n");
-    struct dns_req* req = (struct dns_req*)calloc(1, sizeof(struct dns_req));
-
-
+    struct dns_req* req = NULL;
     struct in_addr inaddr;
-    if (inet_aton(host, &inaddr)) {
+    if (inet_aton(host, &inaddr)) {        
         return inet_ntoa(inaddr);
     }
 
@@ -255,7 +253,7 @@ const char* dns_resolve(const char* host) {
     }
 
     printf("cache not found\n");
-
+    req = (struct dns_req*)calloc(1, sizeof(struct dns_req));
     req->task_id = coroutine_running(s_base->sch);
     printf("taskid=%d\n", req->task_id);
     struct dns_real_req* real_req = dns_real_req_find(host);

@@ -67,10 +67,10 @@ static int read_request_line(co_socket* sock, http_request_header* header) {
 	}
 
 	if(parser_url.field_set & (1 << UF_PATH)) {
-		bzero(buf_tmp, sizeof(buf_tmp));
 		buf_tmp = strndup(header->url.c_str() + parser_url.field_data[UF_PATH].off,
 			    parser_url.field_data[UF_PATH].len);
 		header->url_path = buf_tmp;
+		free(buf_tmp);
 	}
 
 	if(parser_url.field_set & (1 << UF_FRAGMENT)) {
