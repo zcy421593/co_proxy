@@ -1,4 +1,4 @@
-TARGET = test
+TARGET = co_proxy
 DEPS = http_parser.o \
 	   utils.o \
 	   co_base.o \
