@@ -88,7 +88,7 @@ void co_thread_free(co_thread* thread) {
 		event_free(thread->tmr_notify_waiting);
 		thread->tmr_notify_waiting = NULL;
 	}
-
+	
 	free(thread);
 }
 

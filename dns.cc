@@ -456,6 +456,24 @@ static void dns_recv_cb(int fd, short what, void* args) {
     delete[] recv_buf;
 }
 
+void dns_cancel_all() {
+    if(s_event) {
+        printf("dns cancel all\n");
+        if(event_pending(s_event, EV_READ, NULL)) {
+            event_del(s_event);
+        }
+        close(s_fd);
+    }
+    for(int i = 0; i < HASH_BUCKET_SIZE; i++) {
+        dns_real_req* pos;
+        dns_real_req* tmp;
+        list_for_each_entry_safe(pos, tmp, &s_hash[i], list) {
+            printf("start free dns\n");
+            dns_real_req_active_and_free(pos, NULL, 0, -1);            
+        }
+    }
+}
+
 int dns_fini() {
     return 0;
 }

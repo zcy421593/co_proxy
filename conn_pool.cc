@@ -74,3 +74,20 @@ int  pool_get_connection(std::string dest, int port) {
 	}
 	return ret;
 }
+
+int  pool_cancel_all() {
+	for(std::map<string, conn_info*>::iterator it= s_map.begin(); it != s_map.end(); it ++) {
+		printf("freeing conn\n");
+		fd_info* info;
+		fd_info* tmp;
+
+		list_for_each_entry_safe(info, tmp, &it->second->list_fd, list) {			
+			list_del(&info->list);
+			event_del(info->ev);
+			event_free(info->ev);
+			close(info->fd);
+			free(info);
+		}
+	}
+	return 0;
+}

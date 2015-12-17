@@ -3,6 +3,7 @@
 #include "co_base.h"
 
 struct co_socket;
+void co_socket_error_all();
 struct co_socket* co_socket_create(co_base*);
 struct co_socket* co_socket_create_with_fd(co_base*, int fd);
 int co_socket_connect(co_socket*, const char* addr, int port);

@@ -9,17 +9,42 @@
 #include <errno.h>
 #include <string.h>
 #include <unistd.h>
+#include "list.h"
+
+static list_head_t s_head = LIST_HEAD_INIT(s_head);
+
 struct co_socket {
+	list_head list;
 	int fd;
 	co_base* base;
 	int task_id;
 	event* event_read;
 	event* event_write;
+	event* event_cancel;
 	int read_timeout;
 	int write_timeout;
 	bool is_task_canceled;
 	bool is_error;
 };
+
+static void cancelcb(int fd, short what, void* args) {
+	co_socket* sock = (co_socket*)args;
+	sock->is_task_canceled = true;
+	coroutine_resume(sock->base->sch, sock->task_id);
+}
+
+void co_socket_error_all() {
+	co_socket* pos;
+	co_socket* tmp;
+	list_for_each_entry_safe(pos, tmp, &s_head, list) {
+		if((pos->event_read && event_pending(pos->event_read, EV_READ, NULL)) || 
+			(pos->event_write && event_pending(pos->event_write, EV_WRITE, NULL))) {
+			timeval val = {};
+			pos->event_cancel = evtimer_new(pos->base->base, cancelcb, pos);
+			event_add(pos->event_cancel, &val);
+		}		
+	}
+}
 
 struct co_socket* co_socket_create(co_base* base) {
 	co_socket* sock = (co_socket*)calloc(1, sizeof(co_socket));
@@ -29,6 +54,7 @@ struct co_socket* co_socket_create(co_base* base) {
 	sock->write_timeout = -1;
 	sock->task_id = -1;
 	evutil_make_socket_nonblocking(sock->fd);
+	list_add(&sock->list, &s_head);
 	return sock;
 };
 
@@ -40,6 +66,7 @@ struct co_socket* co_socket_create_with_fd(co_base* base, int fd) {
 	sock->write_timeout = -1;
 	sock->task_id = -1;
 	evutil_make_socket_nonblocking(sock->fd);
+	list_add(&sock->list, &s_head);
 	return sock;
 };
 
@@ -103,6 +130,10 @@ int co_socket_connect(co_socket* sock, const char* sz_addr, int port) {
 	sock->task_id = coroutine_running(sock->base->sch);
 	event_add(sock->event_write, NULL);
 	coroutine_yield(sock->base->sch);
+
+	if(sock->is_task_canceled) {
+		return -1;
+	}
 	getsockopt(sock->fd, SOL_SOCKET, SO_ERROR, &error, &len_err);
 	event_free(sock->event_write);
 	sock->event_write = NULL;
@@ -116,7 +147,13 @@ co_socket* co_socket_accept(co_socket* sock) {
 	}	
 	sock->task_id = coroutine_running(sock->base->sch);
 	event_add(sock->event_read, NULL);
+
 	coroutine_yield(sock->base->sch);
+
+	if(sock->is_task_canceled) {
+		sock->is_error = true;
+		return NULL;
+	}
 	int fd = accept(sock->fd, NULL, NULL);
 	evutil_make_socket_nonblocking(fd);
 	if(fd < 0) {
@@ -126,6 +163,7 @@ co_socket* co_socket_accept(co_socket* sock) {
 	sock_ret = (co_socket*)calloc(1, sizeof(co_socket));
 	sock_ret->fd = fd;
 	sock_ret->base = sock->base;
+	list_add(&sock_ret->list, &s_head);
 	return sock_ret;
 }
 
@@ -267,6 +305,12 @@ int co_socket_write(co_socket* sock, char* buf, int len) {
 				event_add(sock->event_write, NULL);
 				sock->task_id = coroutine_running(sock->base->sch);
 				coroutine_yield(sock->base->sch);
+
+				if(sock->is_task_canceled) {
+					sock->is_error = true;
+					return -1;
+				}
+
 				continue;
 			} else {
 				printf("write error detect\n");
@@ -284,6 +328,11 @@ int co_socket_write(co_socket* sock, char* buf, int len) {
 			event_add(sock->event_write, NULL);
 			printf("write coroutine_yield");
 			coroutine_yield(sock->base->sch);
+
+			if(sock->is_task_canceled) {
+				sock->is_error = true;
+				return -1;
+			}
 			continue;
 		}
 
@@ -299,6 +348,7 @@ int co_socket_write(co_socket* sock, char* buf, int len) {
 int co_socket_detach_fd(co_socket* sock) {
 	int tmp = sock->fd;
 	sock->fd = 0;
+	list_del(&sock->list);
 	return tmp;
 }
 int co_socket_get_fd(co_socket* sock) {
@@ -307,6 +357,7 @@ int co_socket_get_fd(co_socket* sock) {
 
 void co_socket_close(co_socket* sock) {
 	if(sock->fd) {
+		list_del(&sock->list);
 		close(sock->fd);
 	}
 	if(sock->event_write) {
@@ -322,6 +373,7 @@ void co_socket_close(co_socket* sock) {
 		}
 		event_free(sock->event_read);
 	}
+	
 	free(sock);
 }
 

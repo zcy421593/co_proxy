@@ -32,6 +32,7 @@ static void* relay_cb(co_thread* thread, void* args) {
 			break;
 		}
 	}
+	printf("https relay complete\n");
 	return NULL;
 }
 
@@ -107,7 +108,10 @@ static void* connect_cb(co_thread* thread, void* args) {
 
 		if(req_hdr->get_header_value("Expect") == "100-continue") {
 			const char* resp_str= "HTTP/1.1 100 CONTINUE\r\n\r\n";
-			co_socket_write(sock_client, (char*)resp_str, strlen(resp_str));
+			if(co_socket_write(sock_client, (char*)resp_str, strlen(resp_str)) < 0) {
+				do_continue = false;
+				goto complete_session;
+			}
 		}
 
 		if(req_hdr->method == "POST" || req_hdr->method == "PUT") {
@@ -118,10 +122,15 @@ static void* connect_cb(co_thread* thread, void* args) {
 					err = true;
 					break;
 				} else if(len_read ==0) {
-					downstream->complete_body();
+					if(downstream->complete_body() < 0) {
+						err = true;
+					}
 					break;
 				} else {
-					downstream->write_body(buf, len_read);
+					if(downstream->write_body(buf, len_read) < 0) {
+						err = true;
+						break;
+					}
 				}
 			}
 
@@ -220,16 +229,24 @@ void* listen_cb(co_thread* thread, void* args) {
 		co_socket* sock_client = co_socket_accept(sock);
 		printf("accept a client\n");
 		if(!sock_client) {
-			return NULL;
+			break;
 		}
 		co_thread* th1 = co_thread_create(base, connect_cb, sock_client);
 		co_thread_detach(th1);
 	}
+	co_socket_close(sock);
+	printf("listen exited\n");
 	return NULL;
+}
+void sig_int(int sig) {
+	dns_cancel_all();
+	co_socket_error_all();
+	pool_cancel_all();
 }
 
 int main() {
 	signal(SIGPIPE, SIG_IGN);
+	signal(SIGINT, sig_int);
 	co_base* base = co_base_create();
 	dns_init(base, "114.114.114.114");
 	printf("dns init complete\n");
