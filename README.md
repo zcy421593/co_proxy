@@ -8,11 +8,13 @@ the basis functions is ok, but some memory leaks now and not full tested.
 * tcp connection poll  
 * synchronous work flow, easier to understand and custom  
 * one thread only,better performance compared with one-thread-per-connection model  
+
 ### Plantforms  
 Support linux only.  
 ### third party dependences  
 all third party dependences source code has been included in th source code  
 * [libevent](https://github.com/nmathewson/Libevent)  
 * [coroutine](https://github.com/cloudwu/coroutine)  
+
 ### Build  
 Just enter the folder & make  
