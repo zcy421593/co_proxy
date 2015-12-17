@@ -193,7 +193,7 @@ int http_downstream::read_chunk_hdr() {
 	char readbuf[4096] = {};
 	int len_line = co_socket_readline(sock_, readbuf, sizeof(readbuf));
 	printf("read resp chunk hdr=%s\n", readbuf);
-	if(len_line < 0) {5 
+	if(len_line < 0) {
 		return -1;
 	}
 	sscanf(readbuf, "%x", &this->current_chunk_len_);
