@@ -10,10 +10,11 @@ using namespace std;
 
 static int read_request_line(co_socket* sock, http_request_header* header) {
 	http_parser_url parser_url;
-	char readbuf[4096 * 512] = {};
+	char* readbuf = new char[1024 * 20];
 	char* buf_tmp;
-	int len = co_socket_readline(sock, readbuf, sizeof(readbuf));
+	int len = co_socket_readline(sock, readbuf, 1024 * 20);
 	if(len < 0) {
+		delete[] readbuf;
 		return -1;
 	}
 
@@ -21,10 +22,12 @@ static int read_request_line(co_socket* sock, http_request_header* header) {
 	char* pos2 = strrchr(readbuf, ' ');
 
 	if(pos2 == pos) {
+		delete[] readbuf;
 		return -1;
 	}
 
 	if(strchr(pos + 1, ' ') != pos2) {
+		delete[] readbuf;
 		return -1;
 	}
 
@@ -79,6 +82,7 @@ static int read_request_line(co_socket* sock, http_request_header* header) {
 		header->url_flagment = buf_tmp;
 		free(buf_tmp);
 	}
+	delete[] readbuf;
 	return 0;
 }
 

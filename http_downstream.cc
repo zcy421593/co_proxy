@@ -49,9 +49,10 @@ int http_downstream::connect() {
 }
 
 static int read_response_line(co_socket* sock, http_response_header* header) {
-	char readbuf[512] = {};
-	int len = co_socket_readline(sock, readbuf, sizeof(readbuf));
+	char* readbuf = new char[512];
+	int len = co_socket_readline(sock, readbuf, 512);
 	if(len < 0) {
+		delete[] readbuf;
 		return -1;
 	}
 
@@ -59,10 +60,12 @@ static int read_response_line(co_socket* sock, http_response_header* header) {
 	char* pos2 = strchr(pos + 1, ' ');
 
 	if(pos2 == pos) {
+		delete[] readbuf;
 		return -1;
 	}
 
 	if(strchr(pos + 1, ' ') != pos2) {
+		delete[] readbuf;
 		return -1;
 	}
 
@@ -72,25 +75,29 @@ static int read_response_line(co_socket* sock, http_response_header* header) {
 	strncpy((char*)header->status_code.c_str(), pos + 1, pos2 - pos -1);
 	header->status_str.resize(len - (pos2 - readbuf + 1));
 	strncpy((char*)header->status_str.c_str(), pos2 + 1, len - (pos2 - readbuf + 1));
+	delete[] readbuf;
 	return 0;
 }
 
 
 static int read_response_field(co_socket* sock, vector<pair<string, string> >* vec_headers) {
-	char readbuf[4096] = {};
+	char* readbuf = new char[4096];
 	pair<string, string> p;
-	int len = co_socket_readline(sock, readbuf, sizeof(readbuf));
+	int len = co_socket_readline(sock, readbuf, 4096);
 	printf("read_response_field ,line len=%d\n", len);
 	if(len < 0) {
+		delete[] readbuf;
 		return -1;
 	}
 
 	if(len == 0) {
+		delete[] readbuf;
 		return 1;
 	}
 
 	char* pos = strchr(readbuf, ':');
 	if(!pos) {
+		delete[] readbuf;
 		return -1;
 	}
 
@@ -107,6 +114,7 @@ static int read_response_field(co_socket* sock, vector<pair<string, string> >* v
 	 p.second.resize(len - (pos - readbuf));
 	 strncpy((char*)p.second.c_str(), pos, len - (pos - readbuf));
 	 vec_headers->push_back(p);
+	 delete[] readbuf;
 	 return 0;
 }
 
@@ -190,13 +198,15 @@ http_response_header* http_downstream::read_response_header() {
 }
 
 int http_downstream::read_chunk_hdr() {
-	char readbuf[4096] = {};
-	int len_line = co_socket_readline(sock_, readbuf, sizeof(readbuf));
+	char* readbuf = new char[4096];
+	int len_line = co_socket_readline(sock_, readbuf, 4096);
 	printf("read resp chunk hdr=%s\n", readbuf);
 	if(len_line < 0) {
+		delete[] readbuf;
 		return -1;
 	}
 	sscanf(readbuf, "%x", &this->current_chunk_len_);
+	delete[] readbuf;
 	return 0;
 }
 
