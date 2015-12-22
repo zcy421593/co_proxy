@@ -31,12 +31,13 @@ static void event_cb(int fd, short what, void* args) {
 } 
 
 void pool_queue_connection(event_base* base, std::string dest, int port, int fd) {
+	timeval val = {60 * 5, 0};
 	string tag = get_format_string("%s:%d", dest.c_str(), port);
 	conn_info* conn = NULL;
 	fd_info* info = (fd_info*)calloc(1, sizeof(fd_info));
 	info->fd = fd;
 	info->ev = event_new(base, fd, EV_READ, event_cb, info);
-	event_add(info->ev, NULL);
+	event_add(info->ev, &val);
 	if(s_map.find(tag) == s_map.end()) {
 		conn = new conn_info;
 		conn->tag = tag;
