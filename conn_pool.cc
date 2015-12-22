@@ -89,6 +89,8 @@ int  pool_cancel_all() {
 			close(info->fd);
 			free(info);
 		}
+		delete it->second;
 	}
+	s_map.clear();
 	return 0;
 }

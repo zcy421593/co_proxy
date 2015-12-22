@@ -374,6 +374,9 @@ void co_socket_close(co_socket* sock) {
 		event_free(sock->event_read);
 	}
 	
+	if(sock->event_cancel) {
+		event_free(sock->event_cancel);
+	}
 	free(sock);
 }
 

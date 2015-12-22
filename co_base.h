@@ -9,4 +9,5 @@ struct co_base {
 
 struct co_base* co_base_create();
 void co_base_dispatch(co_base* base);
+
 #endif

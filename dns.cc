@@ -462,7 +462,10 @@ void dns_cancel_all() {
         if(event_pending(s_event, EV_READ, NULL)) {
             event_del(s_event);
         }
+        event_free(s_event);
         close(s_fd);
+        s_base = NULL;
+        s_fd = 0;
     }
     for(int i = 0; i < HASH_BUCKET_SIZE; i++) {
         dns_real_req* pos;
@@ -470,6 +473,15 @@ void dns_cancel_all() {
         list_for_each_entry_safe(pos, tmp, &s_hash[i], list) {
             printf("start free dns\n");
             dns_real_req_active_and_free(pos, NULL, 0, -1);            
+        }
+    }
+
+    for(int i = 0; i < CACHE_HASH_BUCKET_SIZE; i++) {
+        cache_record* pos;
+        cache_record* tmp;
+        list_for_each_entry_safe(pos, tmp, &s_cache_hash[i], list) {
+            list_del(&pos->list);
+            free(pos);
         }
     }
 }

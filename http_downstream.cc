@@ -142,11 +142,7 @@ static int read_response_header(co_socket* sock, http_response_header* header) {
 			header->transfer_encoding = p.second;
 		}
 
-		printf("%s: %s\n", p.first.c_str(), p.second.c_str());
-
-
-
-		
+		printf("%s: %s\n", p.first.c_str(), p.second.c_str());		
 	}
 	return 0;
 }
