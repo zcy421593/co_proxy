@@ -1,7 +1,8 @@
 # CoProxy  
 CoProxy is a light weigth http proxy server implement with coroutine.  
 ### develement status  
-the basis functions is ok, but some memory leaks now and not full tested.  
+the basis functions is ok, no memory leaks now.
+no full unit tested.  
 ### Features  
 * dns merge query  
 * dns cache  
