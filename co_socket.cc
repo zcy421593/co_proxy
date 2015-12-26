@@ -293,11 +293,11 @@ int co_socket_write(co_socket* sock, char* buf, int len) {
 
 		//getsockopt(sock->fd, SOL_SOCKET, SO_ERROR, &ret, &len_ret);
 
-		if(this->is_error) {
+		if(sock->is_error) {
 			return -1;
 		}
 
-		if(this->is_task_canceled) {
+		if(sock->is_task_canceled) {
 			return -1;
 		}
 
