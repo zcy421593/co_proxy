@@ -74,13 +74,21 @@ static int read_response_line(co_socket* sock, http_response_header* header) {
 	header->version_str = tmp;
 	free(tmp);
 
-	tmp = strndup(pos + 1, pos2 - pos -1);
+	if(pos2) {
+		tmp = strndup(pos + 1, pos2 - pos -1);
+	} else {
+		tmp = strdup(pos + 1);
+	}
+	
 	header->status_code = tmp;
 	free(tmp);
 
-	tmp = strndup(pos2 + 1, len - (pos2 - readbuf + 1));
-	header->status_str = tmp;
-	free(tmp);
+	if(pos2) {
+		tmp = strndup(pos2 + 1, len - (pos2 - readbuf + 1));
+		header->status_str = tmp;
+		free(tmp);
+	}
+	
 
 	delete[] readbuf;
 	return 0;
