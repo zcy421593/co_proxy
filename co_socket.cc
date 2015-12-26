@@ -286,24 +286,20 @@ int co_socket_write(co_socket* sock, char* buf, int len) {
 
 	int ret;
 	socklen_t len_ret = sizeof(ret);
-	
+	getsockopt(sock->fd, SOL_SOCKET, SO_ERROR, &ret, &len_ret);
+
+	if(ret != 0) {
+		return -1;
+	}
 	 
 	int write_len = 0;
 	for(;;) {
-
-		//getsockopt(sock->fd, SOL_SOCKET, SO_ERROR, &ret, &len_ret);
-
 		if(sock->is_error) {
 			return -1;
 		}
-
-		if(sock->is_task_canceled) {
-			return -1;
-		}
-
 		int len_to_write = len - write_len < write_len_once ? len - write_len : write_len_once;
 		int len_real_write = send(sock->fd, buf + write_len, len_to_write, 0);
-		fprintf(stderr ,"write ret %d, towrite = %d\n", len_real_write, len);
+		printf("write ret %d, towrite = %d\n", len_real_write, len);
 		if(len_real_write < 0) {
 			if(errno == EAGAIN) {
 				if(!sock->event_write) {

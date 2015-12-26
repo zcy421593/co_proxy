@@ -20,10 +20,10 @@ struct relay_info {
 	co_socket* sock_send;
 };
 static void* relay_cb(co_thread* thread, void* args) {
-	char *buf = new char[4096];
+	char buf[4096] = {};
 	relay_info* info = (relay_info*)args;
 	for(;;) {
-		int ret = co_socket_read(info->sock_read, buf, 4096);
+		int ret = co_socket_read(info->sock_read, buf, sizeof(buf));
 		if(ret <= 0) {
 			break;
 		}
@@ -32,7 +32,6 @@ static void* relay_cb(co_thread* thread, void* args) {
 			break;
 		}
 	}
-	delete[] buf;
 	printf("https relay complete\n");
 	return NULL;
 }
@@ -105,6 +104,7 @@ static void* connect_cb(co_thread* thread, void* args) {
 			do_continue = false;
 			goto complete_session;
 		}
+		downstream->write_request_header();
 
 		if(req_hdr->get_header_value("Expect") == "100-continue") {
 			const char* resp_str= "HTTP/1.1 100 CONTINUE\r\n\r\n";
