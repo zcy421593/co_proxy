@@ -50,6 +50,7 @@ int http_downstream::connect() {
 
 static int read_response_line(co_socket* sock, http_response_header* header) {
 	char* readbuf = new char[512];
+	char* tmp = NULL;
 	int len = co_socket_readline(sock, readbuf, 512);
 	if(len < 0) {
 		delete[] readbuf;
@@ -69,12 +70,18 @@ static int read_response_line(co_socket* sock, http_response_header* header) {
 		return -1;
 	}
 
-	header->version_str.resize(pos - readbuf);
-	strncpy((char*)header->version_str.c_str(), readbuf, pos - readbuf);
-	header->status_code.resize(pos2 - pos - 1);
-	strncpy((char*)header->status_code.c_str(), pos + 1, pos2 - pos -1);
-	header->status_str.resize(len - (pos2 - readbuf + 1));
-	strncpy((char*)header->status_str.c_str(), pos2 + 1, len - (pos2 - readbuf + 1));
+	tmp = strndup(readbuf, pos - readbuf);
+	header->version_str = tmp;
+	free(tmp);
+
+	tmp = strndup(pos + 1, pos2 - pos -1);
+	header->status_code = tmp;
+	free(tmp);
+
+	tmp = strndup(pos2 + 1, len - (pos2 - readbuf + 1));
+	header->status_str = tmp;
+	free(tmp);
+
 	delete[] readbuf;
 	return 0;
 }
@@ -82,6 +89,7 @@ static int read_response_line(co_socket* sock, http_response_header* header) {
 
 static int read_response_field(co_socket* sock, vector<pair<string, string> >* vec_headers) {
 	char* readbuf = new char[4096];
+	char* tmp = NULL;
 	pair<string, string> p;
 	int len = co_socket_readline(sock, readbuf, 4096);
 	printf("read_response_field ,line len=%d\n", len);
@@ -104,15 +112,20 @@ static int read_response_field(co_socket* sock, vector<pair<string, string> >* v
 	p.first.resize(pos - readbuf);
 	
 	
-	strncpy((char*)p.first.c_str(), readbuf, pos - readbuf);
+	tmp = strndup(readbuf, pos - readbuf);
+	p.first = tmp;
+	free(tmp);
 
 	pos ++;
 	//printf("after add pos=%s\n", pos);
 	 while(*pos == ' ') {
 	 	pos ++;
 	 }
-	 p.second.resize(len - (pos - readbuf));
-	 strncpy((char*)p.second.c_str(), pos, len - (pos - readbuf));
+
+	 tmp = strndup(pos, len - (pos - readbuf));
+	 p.second = tmp;
+	 free(tmp);
+
 	 vec_headers->push_back(p);
 	 delete[] readbuf;
 	 return 0;
