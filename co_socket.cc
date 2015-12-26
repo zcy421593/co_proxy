@@ -291,12 +291,16 @@ int co_socket_write(co_socket* sock, char* buf, int len) {
 	int write_len = 0;
 	for(;;) {
 
-		getsockopt(sock->fd, SOL_SOCKET, SO_ERROR, &ret, &len_ret);
+		//getsockopt(sock->fd, SOL_SOCKET, SO_ERROR, &ret, &len_ret);
 
-		if(ret != 0) {
+		if(this->is_error) {
 			return -1;
 		}
-	
+
+		if(this->is_task_canceled) {
+			return -1;
+		}
+
 		int len_to_write = len - write_len < write_len_once ? len - write_len : write_len_once;
 		int len_real_write = send(sock->fd, buf + write_len, len_to_write, 0);
 		fprintf(stderr ,"write ret %d, towrite = %d\n", len_real_write, len);
