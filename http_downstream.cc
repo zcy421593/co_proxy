@@ -45,7 +45,7 @@ int http_downstream::connect() {
 	}
 
 	this->sock_ = co_socket_create(this->base_);
-	co_socket_set_connecttimeout(this->sock_, 30);
+	co_socket_set_connecttimeout(this->sock_, 10);
 	int ret = co_socket_connect(this->sock_, ip, this->req_->url_port);
 	co_socket_set_connecttimeout(this->sock_, -1);
 	return ret;
