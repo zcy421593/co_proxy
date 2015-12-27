@@ -74,6 +74,7 @@ struct co_socket* co_socket_create_with_fd(co_base* base, int fd) {
 
 
 void co_socket_set_readtimeout(co_socket* sock, int ms) {
+	printf("co_socket_set_readtimeout:%d\n", ms);
 	sock->read_timeout = ms;
 }
 
@@ -266,7 +267,7 @@ int co_socket_read(co_socket* sock, char* buf, int len) {
 
 int co_socket_readline(co_socket* sock, char* buf, int len) {
 	memset(buf, 0, len);
-
+	timeval val = {sock->read_timeout, 0};
 	int len_in_readbuf = recv(sock->fd, buf, len - 1, MSG_PEEK);
 	printf("len_in_readbuf = %d\n", len_in_readbuf);
 	if(!sock->event_read) {
@@ -276,7 +277,7 @@ int co_socket_readline(co_socket* sock, char* buf, int len) {
 	sock->task_id = coroutine_running(sock->base->sch);
 
 	for(;;) {
-		event_add(sock->event_read, NULL);
+		event_add(sock->event_read,  sock->read_timeout == -1 ? NULL : &val);
 		coroutine_yield(sock->base->sch);
 		printf("readline ret\n");
 		if(sock->is_task_canceled) {
