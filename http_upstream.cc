@@ -126,6 +126,7 @@ static int read_response_field(co_socket* sock, vector<pair<string, string> >* v
 
 
 static int read_request_header(co_socket* sock, http_request_header* header) {
+	co_socket_set_readtimeout(sock, 30);
 	if(read_request_line(sock, header) != 0) {
 		return -1;
 	}
@@ -147,6 +148,7 @@ static int read_request_header(co_socket* sock, http_request_header* header) {
 			header->transfer_encoding = p.second;
 		}
 	}
+	co_socket_set_readtimeout(sock, -1);
 	return 0;
 }
 

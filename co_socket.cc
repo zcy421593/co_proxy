@@ -24,6 +24,7 @@ struct co_socket {
 	int read_timeout;
 	int write_timeout;
 	bool is_task_canceled;
+	bool is_timeout;
 	bool is_error;
 };
 
@@ -71,7 +72,9 @@ struct co_socket* co_socket_create_with_fd(co_base* base, int fd) {
 };
 
 
-
+void co_socket_set_readtimeout(co_socket* sock, int ms) {
+	sock->read_timeout = ms;
+}
 
 int co_socket_bind(co_socket* sock, const char* str_addr, int port) {
 	int reuse = 1;
@@ -106,7 +109,13 @@ static void writecb(int fd, short what, void* args) {
 
 static void readcb(int fd, short what, void* args) {
 	printf("readcb called\n");
+
+	
 	co_socket* sock = (co_socket*)args;
+	if(what & EV_TIMEOUT) {
+		printf("read timeout\n");
+		sock->is_timeout = true;
+	}
 	coroutine_resume(sock->base->sch, sock->task_id);
 }
 
@@ -205,7 +214,7 @@ int co_socket_read_peek(co_socket* sock, char* buf, int len) {
 int co_socket_read(co_socket* sock, char* buf, int len) {
 
 	int len_read = 0;
-
+	timeval val = {sock->read_timeout, 0};
 	len_read = recv(sock->fd, buf, len, 0);
 	printf("len read =%d\n", len_read);
 	if(len_read >= 0) {
@@ -222,10 +231,14 @@ int co_socket_read(co_socket* sock, char* buf, int len) {
 	}
 
 	sock->task_id = coroutine_running(sock->base->sch);
-	event_add(sock->event_read, NULL);
+	event_add(sock->event_read, sock->read_timeout == -1 ? NULL : &val);
 	coroutine_yield(sock->base->sch);
 
 	if(sock->is_task_canceled) {
+		return -1;
+	}
+
+	if(sock->is_timeout) {
 		return -1;
 	}
 
@@ -297,6 +310,11 @@ int co_socket_write(co_socket* sock, char* buf, int len) {
 		if(sock->is_error) {
 			return -1;
 		}
+		if(sock->is_task_canceled) {
+			sock->is_error = true;
+			return -1;
+		}
+
 		int len_to_write = len - write_len < write_len_once ? len - write_len : write_len_once;
 		int len_real_write = send(sock->fd, buf + write_len, len_to_write, 0);
 		printf("write ret %d, towrite = %d\n", len_real_write, len);

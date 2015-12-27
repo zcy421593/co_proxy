@@ -140,6 +140,7 @@ static int read_response_field(co_socket* sock, vector<pair<string, string> >* v
 }
 
 static int read_response_header(co_socket* sock, http_response_header* header) {
+	co_socket_set_readtimeout(sock, 30);
 	if(read_response_line(sock, header) != 0) {
 		printf("read response line failed\n");
 		return -1;
@@ -165,6 +166,7 @@ static int read_response_header(co_socket* sock, http_response_header* header) {
 
 		printf("%s: %s\n", p.first.c_str(), p.second.c_str());		
 	}
+	co_socket_set_readtimeout(sock, -1);
 	return 0;
 }
 
