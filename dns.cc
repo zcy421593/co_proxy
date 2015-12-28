@@ -444,16 +444,17 @@ static void dns_recv_cb(int fd, short what, void* args) {
     if(what != EV_READ) {
         return;
     }
-    char* recv_buf = new char[1024];
-    bzero(recv_buf, 1024);
+    static char recv_buf[1024] = {};
+    //char* recv_buf = new char[1024];
+    //bzero(recv_buf, 1024);
     int rc = recvfrom(s_fd, recv_buf, 1024, 0, (struct sockaddr *)&server_addr, &addr_len);
     if( rc == -1 ) {
-        delete recv_buf;
+        //delete recv_buf;
         return;
     }
 
     decode_response(recv_buf, rc);
-    delete[] recv_buf;
+    //delete[] recv_buf;
 }
 
 void dns_cancel_all() {

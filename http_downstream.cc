@@ -52,11 +52,12 @@ int http_downstream::connect() {
 }
 
 static int read_response_line(co_socket* sock, http_response_header* header) {
-	char* readbuf = new char[512];
+	//char* readbuf = new char[512];
+	static char readbuf[512] = {};
 	char* tmp = NULL;
 	int len = co_socket_readline(sock, readbuf, 512);
 	if(len < 0) {
-		delete[] readbuf;
+		//delete[] readbuf;
 		return -1;
 	}
 
@@ -64,12 +65,12 @@ static int read_response_line(co_socket* sock, http_response_header* header) {
 	char* pos2 = strchr(pos + 1, ' ');
 
 	if(pos2 == pos) {
-		delete[] readbuf;
+		//delete[] readbuf;
 		return -1;
 	}
 
 	if(strchr(pos + 1, ' ') != pos2) {
-		delete[] readbuf;
+		//delete[] readbuf;
 		return -1;
 	}
 
@@ -93,30 +94,31 @@ static int read_response_line(co_socket* sock, http_response_header* header) {
 	}
 	
 
-	delete[] readbuf;
+	//delete[] readbuf;
 	return 0;
 }
 
 
 static int read_response_field(co_socket* sock, vector<pair<string, string> >* vec_headers) {
-	char* readbuf = new char[4096];
+	//char* readbuf = new char[4096];
+	static char readbuf[4096] = {};
 	char* tmp = NULL;
 	pair<string, string> p;
 	int len = co_socket_readline(sock, readbuf, 4096);
 	printf("read_response_field ,line len=%d\n", len);
 	if(len < 0) {
-		delete[] readbuf;
+		//delete[] readbuf;
 		return -1;
 	}
 
 	if(len == 0) {
-		delete[] readbuf;
+		//delete[] readbuf;
 		return 1;
 	}
 
 	char* pos = strchr(readbuf, ':');
 	if(!pos) {
-		delete[] readbuf;
+		//delete[] readbuf;
 		return -1;
 	}
 
@@ -138,7 +140,7 @@ static int read_response_field(co_socket* sock, vector<pair<string, string> >* v
 	 free(tmp);
 
 	 vec_headers->push_back(p);
-	 delete[] readbuf;
+	 //delete[] readbuf;
 	 return 0;
 }
 
@@ -220,22 +222,23 @@ http_response_header* http_downstream::read_response_header() {
 }
 
 int http_downstream::read_chunk_hdr() {
-	char* readbuf = new char[4096];
+	//char* readbuf = new char[4096];
+	static char readbuf[4096] = {};
 	int len_line = co_socket_readline(sock_, readbuf, 4096);
 	printf("read resp chunk hdr=%s\n", readbuf);
 	if(len_line < 0) {
-		delete[] readbuf;
+		//delete[] readbuf;
 		return -1;
 	}
 	sscanf(readbuf, "%x", &this->current_chunk_len_);
-	delete[] readbuf;
+	//delete[] readbuf;
 	return 0;
 }
 
 int http_downstream::read_body(char* body, int len) {
 	int len_read = 0;
 	printf("http_downstream::readbody\n");
-	char buf_readline[64] = {};
+	static char buf_readline[64] = {};
 	 if(this->resp_->transfer_encoding == "chunked") {
 	 	if(this->current_chunk_len_ == -1) {
 	 		if(this->read_chunk_hdr() != 0) {
@@ -305,7 +308,7 @@ int http_downstream::read_body(char* body, int len) {
 
 int http_downstream::write_body(char* body, int len) {
 	if(this->req_->transfer_encoding == "chunked") {
-		char buf[64] = {};
+		static char buf[64] = {};
 		snprintf(buf, sizeof(buf), "%x\r\n", len);
 		co_socket_write(sock_, buf, strlen(buf));
 		co_socket_write(sock_, body, len);

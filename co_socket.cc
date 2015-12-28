@@ -311,7 +311,7 @@ int co_socket_readline(co_socket* sock, char* buf, int len) {
 
 int co_socket_write(co_socket* sock, char* buf, int len) {
 	const int write_len_once = 4096;
-
+	char* buf_tmp = buf;
 	int ret;
 	socklen_t len_ret = sizeof(ret);
 	getsockopt(sock->fd, SOL_SOCKET, SO_ERROR, &ret, &len_ret);
@@ -331,10 +331,15 @@ int co_socket_write(co_socket* sock, char* buf, int len) {
 		}
 
 		int len_to_write = len - write_len < write_len_once ? len - write_len : write_len_once;
-		int len_real_write = send(sock->fd, buf + write_len, len_to_write, 0);
+		int len_real_write = send(sock->fd, buf_tmp + write_len, len_to_write, 0);
 		printf("write ret %d, towrite = %d\n", len_real_write, len);
 		if(len_real_write < 0) {
 			if(errno == EAGAIN) {
+				if(buf_tmp == buf) {
+					buf_tmp = new char[len];
+					memcpy(buf_tmp, buf, len);
+				}
+
 				if(!sock->event_write) {
 					sock->event_write = event_new(sock->base->base, sock->fd, EV_WRITE, writecb, sock);
 				}
@@ -357,6 +362,11 @@ int co_socket_write(co_socket* sock, char* buf, int len) {
 		}
 		write_len += len_real_write;
 		if(len_real_write < len_to_write) {
+			if(buf_tmp == buf) {
+					buf_tmp = new char[len];
+					memcpy(buf_tmp, buf, len);
+			}
+
 			if(!sock->event_write) {
 				sock->event_write = event_new(sock->base->base, sock->fd, EV_WRITE, acceptcb, sock);
 			}
@@ -366,6 +376,9 @@ int co_socket_write(co_socket* sock, char* buf, int len) {
 			coroutine_yield(sock->base->sch);
 
 			if(sock->is_task_canceled) {
+				if(buf_tmp != buf) {
+					delete[] buf_tmp;
+				}
 				sock->is_error = true;
 				return -1;
 			}
@@ -376,7 +389,11 @@ int co_socket_write(co_socket* sock, char* buf, int len) {
 			break;
 		}
 
-	}	
+	}
+
+	if(buf_tmp != buf) {
+		delete[] buf_tmp;
+	}
 
 	return write_len;
 }

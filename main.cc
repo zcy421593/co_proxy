@@ -20,7 +20,7 @@ struct relay_info {
 	co_socket* sock_send;
 };
 static void* relay_cb(co_thread* thread, void* args) {
-	char buf[4096] = {};
+	static char buf[4096] = {};
 	relay_info* info = (relay_info*)args;
 	for(;;) {
 		int ret = co_socket_read(info->sock_read, buf, sizeof(buf));
@@ -39,7 +39,7 @@ static void* relay_cb(co_thread* thread, void* args) {
 
 static void* connect_cb(co_thread* thread, void* args) {
 	bool err = false;
-	char buf[4096] = {};
+	static char buf[4096] = {};
 	co_base* base = co_thread_get_base(thread);
 	co_socket* sock_client = (co_socket*)args;
 	for(;;) {
