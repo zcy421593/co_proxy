@@ -177,14 +177,20 @@ static void dns_real_req_active_and_free(struct dns_real_req* req,
         for(i = 0; i < resp_count; i++) {
             if(resps[i].type == 1) {
                 //fprintf(stderr, "setting ip:%s\n", resps[i].ip);
-                ip = resps[i].ip;
+                ip = resps[i].ip;		
                 break;
-            }
+            } else if(resps[i].type == 5) {
+		cname = resps[i].cname;
+	    }
         }
     }
     
     if(!cname) {
         cname = "";
+    }
+
+    if(!ip) {
+      ret_code = -1;
     }
 
     if(resp_count == 0 & ret_code == 0) {
@@ -196,8 +202,9 @@ static void dns_real_req_active_and_free(struct dns_real_req* req,
         event_free(req->tmr_retry);
         req->tmr_retry = NULL;
     }
-    printf("adding cache\n");
-    if(ret_code == 0) {
+    
+    if(ret_code == 0 && ip) {
+	printf("adding cache,host=%s, cname=%s, ip=%s\n", req->host, cname, ip);
         dns_cache_add(req->host, ip, cname);
     }
 
@@ -350,7 +357,7 @@ static unsigned char* decode_resopnse_item(unsigned char* msg_begin, unsigned ch
         //printf("ip:%s\n", resp->ip);
     } else if(type == 0x5) {
         decode_enc_str(msg_begin, p, resp->cname);
-
+	printf("cname:%s\n", resp->cname);
     }
 
     p += rdlen;
