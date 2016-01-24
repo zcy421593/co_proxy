@@ -228,6 +228,18 @@ int co_socket_read_peek(co_socket* sock, char* buf, int len) {
 
 int co_socket_read(co_socket* sock, char* buf, int len) {
 
+	if(sock->is_task_canceled) {
+		return -1;
+	}
+
+	if(sock->is_read_timeout) {
+		return -1;
+	}
+
+	if(sock->is_error) {
+		return -1;
+	}
+
 	int len_read = 0;
 	timeval val = {sock->read_timeout, 0};
 	len_read = recv(sock->fd, buf, len, 0);
@@ -265,6 +277,35 @@ int co_socket_read(co_socket* sock, char* buf, int len) {
 	return len_read;
 }
 
+char* memstr(char* full_data, int full_data_len, char* substr)
+{
+    if (full_data == NULL || full_data_len <= 0 || substr == NULL) {
+        return NULL;
+    }
+
+    if (*substr == '0') {
+        return NULL;
+    }
+
+    int sublen = strlen(substr);
+
+    int i;
+    char* cur = full_data;
+    int last_possible = full_data_len - sublen + 1;
+    for (i = 0; i < last_possible; i++) {
+        if (*cur == *substr) {
+            //assert(full_data_len - i >= sublen);
+            if (memcmp(cur, substr, sublen) == 0) {
+                //found
+                return cur;
+            }
+        }
+        cur++;
+    }
+
+    return NULL;
+}
+
 int co_socket_readline(co_socket* sock, char* buf, int len) {
 	memset(buf, 0, len);
 	timeval val = {sock->read_timeout, 0};
@@ -285,19 +326,25 @@ int co_socket_readline(co_socket* sock, char* buf, int len) {
 			sock->is_error = true;
 			return -1;
 		}
-
+		memset(buf, 0, len);
 		len_in_readbuf = recv(sock->fd, buf, len - 1, MSG_PEEK);
- 		
+ 		printf("len in peek readbuf = %d,data=%s\n", len_in_readbuf, buf);
 		if(len_in_readbuf <= 0) {
 			printf("len in readbuf = %d\n", len_in_readbuf);
 			sock->is_error = true;
 			return -1;
 		}
 		
-		char* pos = strstr(buf, "\r\n");
+		char* pos = memstr(buf, len_in_readbuf, "\r\n");
+		bool is_single = false;
+		if(!pos) {
+		    pos = strstr(buf, "\n");
+		    if(pos) is_single = true;
+		}
 		if(pos) {
 			int len_line = pos - buf;
-			recv(sock->fd, buf, len_line + 2, 0);
+			const int extra_len = is_single ? 1 : 2;
+			recv(sock->fd, buf, len_line + extra_len, 0);
 			buf[len_line] = '\0';
 			printf("len_line=%d,line=%s\n", len_line, buf);
 			return len_line;
@@ -305,6 +352,8 @@ int co_socket_readline(co_socket* sock, char* buf, int len) {
 			printf("\r\n not found");
 			sock->is_error = true;
 			return -1;
+		} else {
+			printf("other\n");
 		}
 	}
 }
