@@ -31,7 +31,7 @@ static void event_cb(int fd, short what, void* args) {
 } 
 
 void pool_queue_connection(event_base* base, std::string dest, int port, int fd) {
-	timeval val = {60 * 5, 0};
+	timeval val = {30, 0};
 	string tag = get_format_string("%s:%d", dest.c_str(), port);
 	conn_info* conn = NULL;
 	fd_info* info = (fd_info*)calloc(1, sizeof(fd_info));

@@ -184,7 +184,9 @@ static void dns_real_req_active_and_free(struct dns_real_req* req,
 	    }
         }
     }
-    
+    if(cname && (!ip)) {
+    	fprintf(stderr, "cname and no ip:%s", cname);
+    }   
     if(!cname) {
         cname = "";
     }
