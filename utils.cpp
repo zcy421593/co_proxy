@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <sys/time.h>
 std::string get_format_string(const char * format, ...) {
   std::string res;
   char buf[4096] = {};
@@ -88,4 +89,10 @@ void strsplit(const std::string& str, std::vector<std::string>& ret, std::string
       tmp.clear();
     }
   }
+}
+
+int64_t get_ms_now() {
+  timeval val = {};
+  gettimeofday(&val, NULL);
+  return val.tv_sec * 1000 + val.tv_usec /1000;
 }

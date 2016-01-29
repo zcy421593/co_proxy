@@ -15,6 +15,7 @@
 #include "coroutine.h"
 #include <assert.h>
 #include "co_base.h"
+#include "utils.h"
 
 #define CACHE_HASH_BUCKET_SIZE 4096
 #define HASH_BUCKET_SIZE 512
@@ -26,6 +27,7 @@ struct cache_record {
     char cname[256];
     char host[256];
     char ip[64];
+    int64_t ts_timeout;
 };
 
 struct request_record {
@@ -37,6 +39,7 @@ struct response_record {
     char ip[64];
     char cname[256];
     char host[256];
+    int ttl;
 };
 
 struct dns_req {
@@ -102,16 +105,28 @@ static int dns_hash_cache_str(const char* str) {
 
 static struct cache_record* dns_cache_find(const char* host) {
     int i = dns_hash_cache_str(host);
-    struct cache_record* pos;
+    struct cache_record* pos = NULL;
+    struct cache_record* res = NULL;
     list_for_each_entry(pos, &s_cache_hash[i], list) {
         if(strcmp(pos->host, host) == 0) {
-            return pos;
+            res = pos;
         }
     }
-    return NULL;
+
+    if(!res) {
+        return NULL;
+    }
+
+    if(res->ts_timeout > get_ms_now()) {
+        return res;
+    } else {
+        fprintf(stderr,"%s dns cache timeout, deleting\n", host);
+        list_del(&res->list);
+        return NULL;
+    }    
 }
 
-static void dns_cache_add(const char* host, const char* ip, const char* cname) {
+static void dns_cache_add(const char* host, const char* ip, const char* cname, int ttl) {
     if(dns_cache_find(host) != NULL) {
         return;
     }
@@ -120,6 +135,7 @@ static void dns_cache_add(const char* host, const char* ip, const char* cname) {
     strncpy(record->host, host, sizeof(record->host));
     strncpy(record->ip, ip, sizeof(record->ip));
     strncpy(record->cname, cname, sizeof(record->ip));
+    record->ts_timeout = get_ms_now() + ttl * 1000;
     list_add_tail(&record->list, &s_cache_hash[i]);
 }
 
@@ -172,12 +188,13 @@ static void dns_real_req_active_and_free(struct dns_real_req* req,
     const char * ip = NULL;
     int ip_count = 0;
     const char* cname = NULL;
-
+    int64_t ttl = 10000;
     if(resp_count > 0) {
         for(i = 0; i < resp_count; i++) {
             if(resps[i].type == 1) {
                 //fprintf(stderr, "setting ip:%s\n", resps[i].ip);
-                ip = resps[i].ip;		
+                ip = resps[i].ip;
+                ttl = resps[i].ttl;
                 break;
             } else if(resps[i].type == 5) {
 		cname = resps[i].cname;
@@ -204,8 +221,8 @@ static void dns_real_req_active_and_free(struct dns_real_req* req,
     }
     
     if(ret_code == 0 && ip) {
-	printf("adding cache,host=%s, cname=%s, ip=%s\n", req->host, cname, ip);
-        dns_cache_add(req->host, ip, cname);
+	fprintf(stderr, "adding cache,host=%s, cname=%s, ip=%s, ttl=%lld\n", req->host, cname, ip, ttl);
+        dns_cache_add(req->host, ip, cname, ttl);
     }
 
     list_for_each_entry_safe(pos, n, &req->list_reqs, list) {
@@ -353,13 +370,14 @@ static unsigned char* decode_resopnse_item(unsigned char* msg_begin, unsigned ch
     if(type == 0x1) {
         for(i = 0; i < 4; i++) {
             snprintf(resp->ip, sizeof(resp->ip), "%d.%d.%d.%d", *p, *(p+1), *(p+2), *(p+3));
+            resp->ttl = ttl;
         }
         //printf("ip:%s\n", resp->ip);
     } else if(type == 0x5) {
         decode_enc_str(msg_begin, p, resp->cname);
 	printf("cname:%s\n", resp->cname);
     }
-
+    
     p += rdlen;
 
     return p;

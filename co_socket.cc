@@ -328,7 +328,7 @@ int co_socket_readline(co_socket* sock, char* buf, int len) {
 		}
 		memset(buf, 0, len);
 		len_in_readbuf = recv(sock->fd, buf, len - 1, MSG_PEEK);
- 		printf("len in peek readbuf = %d,data=%s\n", len_in_readbuf, buf);
+ 		//printf("len in peek readbuf = %d,data=%s\n", len_in_readbuf, buf);
 		if(len_in_readbuf <= 0) {
 			printf("len in readbuf = %d\n", len_in_readbuf);
 			sock->is_error = true;

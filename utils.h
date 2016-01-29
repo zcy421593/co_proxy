@@ -14,4 +14,5 @@ extern void append_format_string(std::string&, const char* format, ...) PRINTF_F
 
 void strsplit(const std::string& str, std::vector<std::string>& ret, std::string sep);
 
+int64_t get_ms_now();
 #endif
