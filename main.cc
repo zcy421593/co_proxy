@@ -330,15 +330,19 @@ read_hdr:
 			}
 		}
 
+		//if(req_hdr->version_str != "HTTP/1.1") {
+		//	do_continue = false;
+		//}
+
 		if(err || resp_hdr->version_str != "HTTP/1.1") {
 			do_continue = false;
 		}
 
-		if(resp_hdr->get_header_value("Connection") == "close") {
+		if(strcasecmp(resp_hdr->get_header_value("Connection").c_str(), "close") == 0){
 			do_continue = false;
 		}
 
-		if(resp_hdr->get_header_value("Proxy-Connection") == "close") {
+		if(strcasecmp(resp_hdr->get_header_value("Proxy-Connection").c_str(), "close") == 0) {
 			do_continue = false;
 		}
 
@@ -393,7 +397,7 @@ int main() {
 	signal(SIGPIPE, SIG_IGN);
 	signal(SIGINT, sig_int);
 	co_base* base = co_base_create();
-	dns_init(base, "127.0.1.1");
+	dns_init(base, "114.114.114.114");
 	printf("dns init complete\n");
 	co_thread* thread_listen = co_thread_create(base, listen_cb, NULL);
 	co_thread_detach(thread_listen);
