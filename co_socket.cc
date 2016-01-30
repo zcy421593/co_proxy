@@ -339,7 +339,7 @@ int co_socket_readline(co_socket* sock, char* buf, int len) {
 		bool is_single = false;
 		if(!pos) {
 		    pos = strstr(buf, "\n");
-		    if(pos) is_single = true;
+	//	    if(pos) is_single = true;
 		}
 		if(pos) {
 			int len_line = pos - buf;
