@@ -20,4 +20,5 @@ int co_socket_detach_fd(co_socket* sock);
 int co_socket_get_fd(co_socket* sock);
 void co_socket_close(co_socket* sock);
 bool co_socket_is_error(co_socket* sock);
+void co_socket_cancel(co_socket* sock);
 #endif
