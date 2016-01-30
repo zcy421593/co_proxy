@@ -93,10 +93,12 @@ static void* relay_cb(co_thread* thread, void* args) {
 	for(;;) {
 		int ret = co_socket_read(info->sock_read, buf, sizeof(buf));
 		if(ret <= 0) {
+			co_socket_cancel(info->sock_send);
 			break;
 		}
 		ret = co_socket_write(info->sock_send, buf, ret);
 		if(ret <= 0) {
+			co_socket_cancel(info->sock_read);
 			break;
 		}
 	}

@@ -129,6 +129,16 @@ void co_socket_set_connecttimeout(co_socket* sock, int ms) {
 	sock->write_timeout = ms;
 }
 
+void co_socket_cancel(co_socket* sock) {
+	timeval val = {};
+	if((sock->event_read && event_pending(sock->event_read, EV_READ, NULL)) ||
+		(sock->event_write && event_pending(sock->event_write, EV_WRITE, NULL))) {
+		sock->is_task_canceled = true;
+		sock->event_cancel = evtimer_new(sock->base->base, cancelcb, sock);
+		event_add(sock->event_cancel, &val);
+	}
+}
+
 int co_socket_connect(co_socket* sock, const char* sz_addr, int port) {
 	timeval val = {sock->write_timeout, 0};
 	int error = 0;	
@@ -477,6 +487,9 @@ void co_socket_close(co_socket* sock) {
 	}
 	
 	if(sock->event_cancel) {
+		if(event_pending(sock->event_cancel, EV_WRITE, NULL)) {
+			event_del(sock->event_cancel);
+		}
 		event_free(sock->event_cancel);
 	}
 	free(sock);
