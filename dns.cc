@@ -142,11 +142,13 @@ static void dns_cache_add(const char* host, const char* ip, const char* cname, i
 static void dns_real_req_timercb(int fd, short what, void* args) {
     struct dns_real_req* real_req = (struct dns_real_req*)args;
     real_req->count_timeout ++;
-    //if(real_req->count_timeout >= 5) {
+
+    fprintf(stderr, "host %s resolve timeout\n", real_req->host);
+   // if(real_req->count_timeout >= 6) {
         dns_real_req_active_and_free(real_req, NULL, 0, -1);
-    //} else {
-    //    dns_real_req_start(real_req);
-    //}
+  //  } else {
+    //   dns_real_req_start(real_req);
+ //   }
 }
 
 static struct dns_real_req* dns_real_req_find(const char* host) {
@@ -397,6 +399,8 @@ static void decode_response(const char* resp, int len) {
     int dcount = (*(p + 4)) * 255 + (*(p + 5));
     int answer_count = (*(p + 6)) * 255 + (*(p + 7));
 
+
+
     if(dcount) {
         reqs = (struct request_record*)calloc(1, sizeof(struct request_record) * dcount);
     }
@@ -420,6 +424,8 @@ static void decode_response(const char* resp, int len) {
     if(reqs) {
         const char* host = reqs[0].host;
         struct dns_real_req* real_req = dns_real_req_find(host);
+
+        fprintf(stderr, "request %s rcode=%d\n",  host, rcode);
 
         if(real_req) {
             dns_real_req_active_and_free(real_req, resps, answer_count, rcode);

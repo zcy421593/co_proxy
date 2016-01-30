@@ -92,7 +92,8 @@ void strsplit(const std::string& str, std::vector<std::string>& ret, std::string
 }
 
 int64_t get_ms_now() {
+  int64_t t = 1;
   timeval val = {};
   gettimeofday(&val, NULL);
-  return val.tv_sec * 1000 + val.tv_usec /1000;
+  return t * val.tv_sec * 1000 + val.tv_usec /1000;
 }

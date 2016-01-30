@@ -67,17 +67,18 @@ static void dump_access_log(access_log* log) {
 
 
 	fprintf(file,"%lld\t"  // request ts
-			    "%s\t"     // url
-			    "%s\t"     // method
+		                    "%s\t"     // method
+			    "%s\t"     // url			   
 			    "%s\t"     // host
-			    "%d\t"     // resolve ms
-			    "%d\t"	   // connect ms
-			    "%d\t"     // wait ms
-			    "%d\t"     // fetch ms
+			    "%ld\t"     // resolve ms
+			    "%ld\t"	   // connect ms
+			    "%ld\t"     // wait ms
+			    "%ld\t"     // fetch ms
 			    "%s\n",	   // error_reason
 			    log->request_ts,
+			    log->request_method.c_str(),
 				log->url.c_str(),
-				log->request_method.c_str(),
+				
 				log->host.c_str(),
 				abstract_timespan(log->dns_resolve_ts, log->request_ts),
 				abstract_timespan(log->connect_ts, log->dns_resolve_ts),
@@ -87,7 +88,7 @@ static void dump_access_log(access_log* log) {
 	fclose(file);
 }
 static void* relay_cb(co_thread* thread, void* args) {
-	static char buf[4096] = {};
+	char buf[4096] = {};
 	relay_info* info = (relay_info*)args;
 	for(;;) {
 		int ret = co_socket_read(info->sock_read, buf, sizeof(buf));
@@ -160,12 +161,13 @@ static void* connect_cb(co_thread* thread, void* args) {
 		log_item.url = req_hdr->url;
 
 		if(req_hdr->method == "CONNECT") {
-			const char* resp_str= "HTTP/1.1 200 Establish\r\n\r\n";
-			co_socket_write(sock_client, (char*)resp_str, strlen(resp_str));
+			const char* resp_str= "HTTP/1.1 200 Connection Established\r\n\r\n";
+			
 			co_socket* sock_relay = co_socket_create(base);
 			const char* ip = dns_resolve(req_hdr->url_host.c_str());
 
 			if(!ip) {
+				fprintf(stderr, "%s resolve failed\n",  req_hdr->url_host.c_str());
 				log_item.error_reason = "dns_resolve_failed";
 				co_socket_close(sock_relay);
 				do_continue = false;
@@ -181,6 +183,7 @@ static void* connect_cb(co_thread* thread, void* args) {
 				do_continue = false;
 				goto complete_session;
 			}
+			co_socket_write(sock_client, (char*)resp_str, strlen(resp_str));
 			log_item.connect_ts = get_ms_now();
 			log_item.response_ts = get_ms_now();
 			log_item.status_code = 200;
@@ -388,7 +391,7 @@ int main() {
 	signal(SIGPIPE, SIG_IGN);
 	signal(SIGINT, sig_int);
 	co_base* base = co_base_create();
-	dns_init(base, "114.114.114.114");
+	dns_init(base, "127.0.1.1");
 	printf("dns init complete\n");
 	co_thread* thread_listen = co_thread_create(base, listen_cb, NULL);
 	co_thread_detach(thread_listen);

@@ -67,7 +67,7 @@ int http_downstream::connect(char* host_ip, int* ms_resolv, bool* is_reuse) {
 		*ms_resolv = get_ms_now() - now_ms;
 	}
 
-	if(host_ip) {
+	if(host_ip && ip) {
 		strcpy(host_ip, ip);
 	}
 

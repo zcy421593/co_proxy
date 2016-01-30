@@ -1,6 +1,7 @@
 #ifndef ALIYUNAPICORE_UTILS_ALISTRINGUTILS_H
 #define ALIYUNAPICORE_UTILS_ALISTRINGUTILS_H
 #include <string>
+#include <stdint.h>
 #if defined(__GNUC__)
 #define PRINTF_FORMAT(format_param, dots_param) \
     __attribute__((format(printf, format_param, dots_param)))
