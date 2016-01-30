@@ -21,11 +21,12 @@ static void thread_notifycb(int fd, short what, void * args) {
 	co_thread* thread = (co_thread*)args;
 	event_free(thread->tmr_notify_waiting);
 	thread->tmr_notify_waiting = NULL;
+
 	coroutine_resume(thread->base->sch, thread->waiting_thread_taskid);
 
-	if(thread->is_detached){
-		free(thread);
-	}
+	//if(thread->is_detached){
+	//	free(thread);
+	//}
 }
 
 static void thread_do_excute(schedule* sch, void* args) {
