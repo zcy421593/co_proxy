@@ -31,14 +31,45 @@ http_downstream::~http_downstream() {
 		co_socket_close(this->sock_);
 	}
 }
-int http_downstream::connect() {
+
+string get_peer_ip(int fd) {
+	struct sockaddr_in addr = {};
+	socklen_t len = sizeof(addr);
+	getpeername(fd, (sockaddr*)&addr, &len);
+	return inet_ntoa(addr.sin_addr);
+}
+
+int http_downstream::connect(char* host_ip, int* ms_resolv, bool* is_reuse) {
 	assert(this->req_);
 	int fd = pool_get_connection(this->req_->url_host, this->req_->url_port);
 	if(fd != -1) {
+		if(is_reuse) {
+			*is_reuse = true;
+		}
+
+		if(ms_resolv) {
+			*ms_resolv = 0;
+		}
+
+		strcpy(host_ip, get_peer_ip(fd).c_str());
+
 		this->sock_ = co_socket_create_with_fd(this->base_, fd);
 		return 0;
 	}
+
+	if(is_reuse) {
+		*is_reuse = false;
+	}
+	int64_t now_ms = get_ms_now();
 	const char* ip = dns_resolve(this->req_->url_host.c_str());
+
+	if(ms_resolv) {
+		*ms_resolv = get_ms_now() - now_ms;
+	}
+
+	if(host_ip) {
+		strcpy(host_ip, ip);
+	}
 
 	if(!ip || !ip[0]) {
 		return -1;

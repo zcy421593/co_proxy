@@ -1,11 +1,12 @@
 #include "http_request_header.h"
 #include "http_response_header.h"
 #include "co_socket.h"
+
 class http_downstream {
 public:
 	http_downstream(co_base* base, http_request_header* req);
 	~http_downstream();
-	int connect();
+	int connect(char* host_ip, int* ms_resolv, bool* is_reuse);
 	int write_request_header();
 	http_response_header* read_response_header();
 	bool is_response_complete();
