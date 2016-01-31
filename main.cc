@@ -373,11 +373,12 @@ void* listen_cb(co_thread* thread, void* args) {
 	co_base* base = co_thread_get_base(thread);
 	co_socket* sock = co_socket_create(base);
 	co_socket_bind(sock, "0.0.0.0", 8123);
-	co_socket_listen(sock, 5);
+	co_socket_listen(sock, 1000);
 	while(1) {
 		co_socket* sock_client = co_socket_accept(sock);
 		printf("accept a client\n");
 		if(!sock_client) {
+			printf("listen thread closed\n");
 			break;
 		}
 		co_thread* th1 = co_thread_create(base, connect_cb, sock_client);
